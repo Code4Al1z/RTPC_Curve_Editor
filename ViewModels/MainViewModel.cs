@@ -55,6 +55,22 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRedo))]
     private void Redo() { UndoRedo.Redo(); RaiseCurveChanged(); }
 
+    // ── Clear curve ─────────────────────────────────────────────────────────
+    [RelayCommand]
+    private void ClearCurve()
+    {
+        var curve = ActiveCurve;
+        UndoRedo.Execute(new ApplyPresetCommand(curve,
+            new List<CurvePoint>
+            {
+            new CurvePoint(0, 0),
+            new CurvePoint(1, 1)
+            }, "Clear"));
+        SelectedPoint = null;
+        RaiseCurveChanged();
+        Status("Curve cleared.");
+    }
+
     // ── Point manipulation (called by canvas) ─────────────────────────────
 
     public void AddPoint(double x, double y)

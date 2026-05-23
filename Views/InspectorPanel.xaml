@@ -130,6 +130,12 @@
 
         <Separator Margin="0,12,0,8"/>
 
+		<!-- Clear curve -->
+		<Button Content="Clear curve"
+                Command="{Binding ClearCurveCommand}"
+                Style="{StaticResource GhostButton}"
+                Margin="0,0,0,12"/>
+		  
         <!-- Export shortcuts -->
         <TextBlock Text="EXPORT" FontSize="10" FontWeight="SemiBold"
                    Foreground="#4A4860" Margin="0,0,0,8"/>
