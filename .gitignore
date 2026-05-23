@@ -1,0 +1,26 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docview
+
+# WPF temp projects generated during build
+*_wpftmp.csproj
+
+# NuGet
+*.nupkg
+project.lock.json
+project.assets.json
+packages/
+
+# Rider
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,97 @@
+<Window x:Class="RTPCCurveEditor.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:RTPCCurveEditor.Views"
+        Title="{Binding WindowTitle}"
+        Width="1280" Height="820"
+        MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+
+  <Window.InputBindings>
+    <KeyBinding Command="{Binding UndoCommand}" Key="Z" Modifiers="Ctrl"/>
+    <KeyBinding Command="{Binding RedoCommand}" Key="Y" Modifiers="Ctrl"/>
+    <KeyBinding Command="{Binding SaveCommand}" Key="S" Modifiers="Ctrl"/>
+    <KeyBinding Command="{Binding OpenCommand}" Key="O" Modifiers="Ctrl"/>
+    <KeyBinding Command="{Binding NewDocumentCommand}" Key="N" Modifiers="Ctrl"/>
+  </Window.InputBindings>
+
+  <DockPanel>
+
+    <!-- ── Menu bar ─────────────────────────────────────────────────── -->
+    <Menu DockPanel.Dock="Top"
+          Background="#0F0F15" Foreground="#E8E6F0"
+          BorderBrush="#2A2A38" BorderThickness="0,0,0,1" Padding="4,2">
+
+      <MenuItem Header="File" Foreground="#E8E6F0">
+        <MenuItem Header="New"             Command="{Binding NewDocumentCommand}" InputGestureText="Ctrl+N"/>
+        <MenuItem Header="Open…"           Command="{Binding OpenCommand}"        InputGestureText="Ctrl+O"/>
+        <Separator/>
+        <MenuItem Header="Save"            Command="{Binding SaveCommand}"        InputGestureText="Ctrl+S"/>
+        <MenuItem Header="Save As…"        Command="{Binding SaveAsCommand}"/>
+        <Separator/>
+        <MenuItem Header="Import Wwise XML…"  Command="{Binding ImportWwiseXmlCommand}"/>
+        <Separator/>
+        <MenuItem Header="Export Wwise XML…"  Command="{Binding ExportWwiseXmlCommand}"/>
+        <MenuItem Header="Export JSON…"       Command="{Binding ExportJsonCommand}"/>
+        <MenuItem Header="Export PNG…"        Command="{Binding ExportPngCommand}"/>
+      </MenuItem>
+
+      <MenuItem Header="Edit" Foreground="#E8E6F0">
+        <MenuItem Header="Undo" Command="{Binding UndoCommand}" InputGestureText="Ctrl+Z"/>
+        <MenuItem Header="Redo" Command="{Binding RedoCommand}" InputGestureText="Ctrl+Y"/>
+      </MenuItem>
+
+      <MenuItem Header="Curve" Foreground="#E8E6F0">
+        <MenuItem Header="Add comparison curve" Command="{Binding AddComparisonCurveCommand}"/>
+        <Separator/>
+        <MenuItem Header="Snap to grid" IsCheckable="True"
+                  IsChecked="{Binding SnapToGrid}"/>
+      </MenuItem>
+
+    </Menu>
+
+    <!-- ── Status bar ───────────────────────────────────────────────── -->
+    <StatusBar DockPanel.Dock="Bottom"
+               Background="#0F0F15" BorderBrush="#2A2A38"
+               BorderThickness="0,1,0,0" Height="26">
+      <StatusBarItem>
+        <TextBlock Text="{Binding StatusMessage}" Foreground="#8A88A0" FontSize="12"/>
+      </StatusBarItem>
+      <StatusBarItem HorizontalAlignment="Right">
+        <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+          <TextBlock Text="Snap" Foreground="#4A4860" FontSize="11" Margin="0,0,4,0"/>
+          <CheckBox IsChecked="{Binding SnapToGrid}" Foreground="#8A88A0" FontSize="11"
+                    VerticalAlignment="Center"/>
+        </StackPanel>
+      </StatusBarItem>
+    </StatusBar>
+
+    <!-- ── Main content ─────────────────────────────────────────────── -->
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="200" MinWidth="160"/>
+        <ColumnDefinition Width="3"/>
+        <ColumnDefinition Width="*" MinWidth="400"/>
+        <ColumnDefinition Width="3"/>
+        <ColumnDefinition Width="220" MinWidth="180"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Left panel: preset library -->
+      <local:PresetLibraryPanel Grid.Column="0" DataContext="{Binding}"/>
+
+      <GridSplitter Grid.Column="1" Width="3" Background="#2A2A38"
+                    HorizontalAlignment="Stretch" ResizeBehavior="PreviousAndNext"/>
+
+      <!-- Centre: curve canvas -->
+      <local:CurveCanvasControl Grid.Column="2" x:Name="CurveCanvas" DataContext="{Binding}"/>
+
+      <GridSplitter Grid.Column="3" Width="3" Background="#2A2A38"
+                    HorizontalAlignment="Stretch" ResizeBehavior="PreviousAndNext"/>
+
+      <!-- Right panel: inspector -->
+      <local:InspectorPanel Grid.Column="4" DataContext="{Binding}"/>
+
+    </Grid>
+  </DockPanel>
+
+</Window>

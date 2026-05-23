@@ -1,0 +1,165 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="clr-namespace:RTPCCurveEditor.Converters">
+
+  <conv:NullToBoolConverter x:Key="NullToBool"/>
+
+  <!-- ── Palette ─────────────────────────────────────────────────────── -->
+  <SolidColorBrush x:Key="BgPrimary"     Color="#0F0F15"/>
+  <SolidColorBrush x:Key="BgSecondary"   Color="#17171F"/>
+  <SolidColorBrush x:Key="BgTertiary"    Color="#1E1E28"/>
+  <SolidColorBrush x:Key="BgPanel"       Color="#13131A"/>
+  <SolidColorBrush x:Key="BorderBrush"   Color="#2A2A38"/>
+  <SolidColorBrush x:Key="AccentPurple"  Color="#7F77DD"/>
+  <SolidColorBrush x:Key="AccentTeal"    Color="#1D9E75"/>
+  <SolidColorBrush x:Key="TextPrimary"   Color="#E8E6F0"/>
+  <SolidColorBrush x:Key="TextSecondary" Color="#8A88A0"/>
+  <SolidColorBrush x:Key="TextMuted"     Color="#4A4860"/>
+
+  <!-- ── Typography ──────────────────────────────────────────────────── -->
+  <Style TargetType="TextBlock">
+    <Setter Property="Foreground"  Value="{StaticResource TextPrimary}"/>
+    <Setter Property="FontFamily"  Value="Segoe UI"/>
+    <Setter Property="FontSize"    Value="13"/>
+  </Style>
+
+  <!-- ── Base window ─────────────────────────────────────────────────── -->
+  <Style TargetType="Window">
+    <Setter Property="Background" Value="{StaticResource BgPrimary}"/>
+    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+    <Setter Property="FontFamily" Value="Segoe UI"/>
+    <Setter Property="FontSize"   Value="13"/>
+  </Style>
+
+  <!-- ── Buttons ─────────────────────────────────────────────────────── -->
+  <Style x:Key="PrimaryButton" TargetType="Button">
+    <Setter Property="Background"   Value="{StaticResource AccentPurple}"/>
+    <Setter Property="Foreground"   Value="#FFFFFF"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding"      Value="14,7"/>
+    <Setter Property="FontSize"     Value="12"/>
+    <Setter Property="FontFamily"   Value="Segoe UI"/>
+    <Setter Property="Cursor"       Value="Hand"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border Background="{TemplateBinding Background}"
+                  CornerRadius="5" Padding="{TemplateBinding Padding}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Background" Value="#9D96E8"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter Property="Background" Value="#6660C0"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Background" Value="#2A2A38"/>
+              <Setter Property="Foreground" Value="#4A4860"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="GhostButton" TargetType="Button">
+    <Setter Property="Background"      Value="Transparent"/>
+    <Setter Property="Foreground"      Value="{StaticResource TextSecondary}"/>
+    <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding"         Value="12,6"/>
+    <Setter Property="FontSize"        Value="12"/>
+    <Setter Property="FontFamily"      Value="Segoe UI"/>
+    <Setter Property="Cursor"          Value="Hand"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="5" Padding="{TemplateBinding Padding}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Background" Value="#1E1E28"/>
+              <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ── TextBox ──────────────────────────────────────────────────────── -->
+  <Style TargetType="TextBox">
+    <Setter Property="Background"      Value="{StaticResource BgTertiary}"/>
+    <Setter Property="Foreground"      Value="{StaticResource TextPrimary}"/>
+    <Setter Property="BorderBrush"     Value="{StaticResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding"         Value="8,5"/>
+    <Setter Property="FontFamily"      Value="Segoe UI"/>
+    <Setter Property="FontSize"        Value="12"/>
+    <Setter Property="CaretBrush"      Value="{StaticResource AccentPurple}"/>
+  </Style>
+
+  <!-- ── ListBox (preset list) ────────────────────────────────────────── -->
+  <Style TargetType="ListBox">
+    <Setter Property="Background"      Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding"         Value="0"/>
+  </Style>
+
+  <Style TargetType="ListBoxItem">
+    <Setter Property="Padding"     Value="10,8"/>
+    <Setter Property="Foreground"  Value="{StaticResource TextSecondary}"/>
+    <Setter Property="FontSize"    Value="12"/>
+    <Setter Property="Background"  Value="Transparent"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ListBoxItem">
+          <Border Background="{TemplateBinding Background}"
+                  CornerRadius="4" Padding="{TemplateBinding Padding}"
+                  Margin="0,1">
+            <ContentPresenter/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Background" Value="#1E1E28"/>
+              <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter Property="Background" Value="#2A2848"/>
+              <Setter Property="Foreground" Value="{StaticResource AccentPurple}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- ── ScrollBar ────────────────────────────────────────────────────── -->
+  <Style TargetType="ScrollBar">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Width"      Value="6"/>
+  </Style>
+
+  <!-- ── Separator ────────────────────────────────────────────────────── -->
+  <Style TargetType="Separator">
+    <Setter Property="Background" Value="{StaticResource BorderBrush}"/>
+    <Setter Property="Height"     Value="1"/>
+    <Setter Property="Margin"     Value="0,4"/>
+  </Style>
+
+  <!-- ── Label ─────────────────────────────────────────────────────────── -->
+  <Style TargetType="Label">
+    <Setter Property="Foreground"  Value="{StaticResource TextSecondary}"/>
+    <Setter Property="FontSize"    Value="11"/>
+    <Setter Property="Padding"     Value="0"/>
+    <Setter Property="FontFamily"  Value="Segoe UI"/>
+  </Style>
+
+</ResourceDictionary>
