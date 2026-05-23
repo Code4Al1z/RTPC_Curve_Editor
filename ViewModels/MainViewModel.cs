@@ -314,6 +314,20 @@ public partial class MainViewModel : ObservableObject
         RaiseCurveChanged();
     }
 
+    // ── Remove button for comparison curves ──────────────────────────────────
+
+    [RelayCommand]
+    private void RemoveCurve(BezierCurve curve)
+    {
+        if (Document.Curves.Count <= 1) { Status("Cannot remove the last curve."); return; }
+        Document.Curves.Remove(curve);
+        if (ActiveCurve == curve) ActiveCurve = Document.PrimaryCurve;
+        OnPropertyChanged(nameof(AllCurves));
+        IsDirty = true;
+        RaiseCurveChanged();
+        Status($"Removed {curve.Name}.");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     public event Action? CurveChanged;
