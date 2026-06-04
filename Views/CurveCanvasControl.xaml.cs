@@ -16,14 +16,14 @@ public partial class CurveCanvasControl : UserControl
     private const float PointRadius = 6f;
     private const float HandleRadius = 4f;
     private const float HitRadius = 10f;
-    private const float CurveHitDist = 8f;   // px distance to count as "on the curve"
+    private const float CurveHitDist = 8f;
 
     // ── State ─────────────────────────────────────────────────────────────
     private MainViewModel? VM => DataContext as MainViewModel;
     private CurvePoint? _draggingPoint;
     private bool _draggingHandle;
     private bool _draggingRightHandle;
-    private bool _hasDragged;           // distinguish click vs drag
+    private bool _hasDragged;
     private SKPoint _mouseDownPos;
     private SKPoint _lastMouseCanvas;
     private float _zoom = 1f;
@@ -59,19 +59,41 @@ public partial class CurveCanvasControl : UserControl
 
     // ── Hit testing ───────────────────────────────────────────────────────
 
-    /// Returns the nearest CurvePoint within HitRadius, or null.
     private CurvePoint? HitPoint(SKPoint pos, BezierCurve curve)
     {
         foreach (var pt in curve.Points)
-        {
             if (SKPoint.Distance(pos, ToCanvas(pt.X, pt.Y)) < HitRadius)
                 return pt;
-        }
         return null;
     }
 
-    /// Returns true if pos is within CurveHitDist pixels of the curve polyline.
-    private bool HitCurve(SKPoint pos, BezierCurve curve)
+    /// Returns the index of the segment the pos falls on, or -1.
+    /// Segment i is between Points[i] and Points[i+1] (sorted by X).
+    private int HitSegment(SKPoint pos, BezierCurve curve)
+    {
+        var sorted = curve.Points.OrderBy(p => p.X).ToList();
+        var poly = curve.GetPolyline(200);
+
+        // Find which pair of anchor points the hit polyline segment belongs to
+        for (int i = 0; i < poly.Count - 1; i++)
+        {
+            var a = ToCanvas(poly[i].X, poly[i].Y);
+            var b = ToCanvas(poly[i + 1].X, poly[i + 1].Y);
+            if (DistPointToSegment(pos, a, b) < CurveHitDist)
+            {
+                // Find which anchor segment this polyline segment belongs to
+                double midX = (poly[i].X + poly[i + 1].X) / 2.0;
+                for (int s = 0; s < sorted.Count - 1; s++)
+                {
+                    if (midX >= sorted[s].X && midX <= sorted[s + 1].X)
+                        return s;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private bool HitAnyCurve(SKPoint pos, BezierCurve curve)
     {
         var poly = curve.GetPolyline(200);
         for (int i = 0; i < poly.Count - 1; i++)
@@ -87,11 +109,59 @@ public partial class CurveCanvasControl : UserControl
     private static float DistPointToSegment(SKPoint p, SKPoint a, SKPoint b)
     {
         var ab = b - a;
-        float lenSq = ab.X * ab.X + ab.Y * ab.Y;
-        if (lenSq < 1e-6f) return SKPoint.Distance(p, a);
-        float t = Math.Clamp(((p.X - a.X) * ab.X + (p.Y - a.Y) * ab.Y) / lenSq, 0, 1);
-        var proj = new SKPoint(a.X + t * ab.X, a.Y + t * ab.Y);
-        return SKPoint.Distance(p, proj);
+        float len = ab.X * ab.X + ab.Y * ab.Y;
+        if (len < 1e-6f) return SKPoint.Distance(p, a);
+        float t = Math.Clamp(((p.X - a.X) * ab.X + (p.Y - a.Y) * ab.Y) / len, 0, 1);
+        return SKPoint.Distance(p, new SKPoint(a.X + t * ab.X, a.Y + t * ab.Y));
+    }
+
+    // ── Colour helpers ────────────────────────────────────────────────────
+
+    /// Returns a brightened version of the curve colour for selected segments/points.
+    private static SKColor BrightenColour(SKColor c)
+    {
+        // Convert to HSL, boost lightness and saturation, convert back
+        RgbToHsl(c.Red, c.Green, c.Blue, out float h, out float s, out float l);
+        s = Math.Min(1f, s + 0.25f);
+        l = Math.Min(1f, l + 0.30f);
+        HslToRgb(h, s, l, out float r, out float g, out float b);
+        return new SKColor((byte)(r * 255), (byte)(g * 255), (byte)(b * 255), c.Alpha);
+    }
+
+    private static void RgbToHsl(byte r, byte g, byte b,
+        out float h, out float s, out float l)
+    {
+        float rf = r / 255f, gf = g / 255f, bf = b / 255f;
+        float max = Math.Max(rf, Math.Max(gf, bf));
+        float min = Math.Min(rf, Math.Min(gf, bf));
+        l = (max + min) / 2f;
+        if (max == min) { h = s = 0; return; }
+        float d = max - min;
+        s = l > 0.5f ? d / (2f - max - min) : d / (max + min);
+        if (max == rf) h = (gf - bf) / d + (gf < bf ? 6 : 0);
+        else if (max == gf) h = (bf - rf) / d + 2;
+        else h = (rf - gf) / d + 4;
+        h /= 6f;
+    }
+
+    private static void HslToRgb(float h, float s, float l,
+        out float r, out float g, out float b)
+    {
+        if (s == 0) { r = g = b = l; return; }
+        float q = l < 0.5f ? l * (1 + s) : l + s - l * s;
+        float p = 2 * l - q;
+        r = HueToRgb(p, q, h + 1f / 3);
+        g = HueToRgb(p, q, h);
+        b = HueToRgb(p, q, h - 1f / 3);
+    }
+
+    private static float HueToRgb(float p, float q, float t)
+    {
+        if (t < 0) t += 1; if (t > 1) t -= 1;
+        if (t < 1f / 6) return p + (q - p) * 6 * t;
+        if (t < 1f / 2) return q;
+        if (t < 2f / 3) return p + (q - p) * (2f / 3 - t) * 6;
+        return p;
     }
 
     // ── Paint ─────────────────────────────────────────────────────────────
@@ -100,7 +170,6 @@ public partial class CurveCanvasControl : UserControl
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(new SKColor(23, 23, 31));
-
         if (VM == null) return;
 
         DrawGrid(canvas);
@@ -160,21 +229,27 @@ public partial class CurveCanvasControl : UserControl
     private void DrawCurve(SKCanvas canvas, BezierCurve curve, byte alpha, bool isActive)
     {
         if (curve.Points.Count < 2) return;
-        SKColor c = SKColor.Parse(curve.ColorHex).WithAlpha(alpha);
 
+        var baseColor = SKColor.Parse(curve.ColorHex).WithAlpha(alpha);
+        var highlightColor = BrightenColour(baseColor);
+        var sorted = curve.Points.OrderBy(p => p.X).ToList();
+
+        // Draw fill once for the whole curve
         var poly = curve.GetPolyline(300);
-
-        // Fill
         using var fillPath = new SKPath();
         fillPath.MoveTo(ToCanvas(poly[0].X, poly[0].Y));
         foreach (var (x, y) in poly.Skip(1)) fillPath.LineTo(ToCanvas(x, y));
         fillPath.LineTo(ToCanvas(poly[^1].X, 0));
         fillPath.LineTo(ToCanvas(poly[0].X, 0));
         fillPath.Close();
-        using var fillPaint = new SKPaint { Color = c.WithAlpha((byte)(alpha / 8)), IsStroke = false };
+        using var fillPaint = new SKPaint
+        {
+            Color = baseColor.WithAlpha((byte)(alpha / 8)),
+            IsStroke = false
+        };
         canvas.DrawPath(fillPath, fillPaint);
 
-        // Stroke — glow ring for active curve
+        // Glow for active curve
         if (isActive)
         {
             using var glowPath = new SKPath();
@@ -182,7 +257,7 @@ public partial class CurveCanvasControl : UserControl
             foreach (var (x, y) in poly.Skip(1)) glowPath.LineTo(ToCanvas(x, y));
             using var glowPaint = new SKPaint
             {
-                Color = c.WithAlpha(30),
+                Color = baseColor.WithAlpha(30),
                 StrokeWidth = 8f,
                 IsAntialias = true,
                 IsStroke = true,
@@ -193,23 +268,49 @@ public partial class CurveCanvasControl : UserControl
             canvas.DrawPath(glowPath, glowPaint);
         }
 
-        using var linePath = new SKPath();
-        linePath.MoveTo(ToCanvas(poly[0].X, poly[0].Y));
-        foreach (var (x, y) in poly.Skip(1)) linePath.LineTo(ToCanvas(x, y));
-        using var strokePaint = new SKPaint
+        // Draw each segment individually so selected ones can be highlighted
+        for (int s = 0; s < sorted.Count - 1; s++)
         {
-            Color = c,
-            StrokeWidth = isActive ? 2.5f : 1.5f,
-            IsAntialias = true,
-            IsStroke = true,
-            StrokeCap = SKStrokeCap.Round,
-            StrokeJoin = SKStrokeJoin.Round
-        };
-        canvas.DrawPath(linePath, strokePaint);
+            var p0 = sorted[s];
+            var p1 = sorted[s + 1];
+
+            // A segment is "selected" when both its endpoints are selected
+            bool segSelected = isActive && p0.IsSelected && p1.IsSelected;
+            SKColor strokeColor = segSelected ? highlightColor : baseColor;
+            float strokeWidth = segSelected ? 3.5f : (isActive ? 2.5f : 1.5f);
+
+            // Sample just this segment
+            int steps = 60;
+            using var segPath = new SKPath();
+            bool first = true;
+            for (int i = 0; i <= steps; i++)
+            {
+                double t = (double)i / steps;
+                double x = p0.X + t * (p1.X - p0.X);
+                double y = curve.Sample(x);
+                var cp = ToCanvas(x, y);
+                if (first) { segPath.MoveTo(cp); first = false; }
+                else segPath.LineTo(cp);
+            }
+
+            using var segPaint = new SKPaint
+            {
+                Color = strokeColor,
+                StrokeWidth = strokeWidth,
+                IsAntialias = true,
+                IsStroke = true,
+                StrokeCap = SKStrokeCap.Round,
+                StrokeJoin = SKStrokeJoin.Round
+            };
+            canvas.DrawPath(segPath, segPaint);
+        }
     }
 
     private void DrawPoints(SKCanvas canvas, BezierCurve curve)
     {
+        var baseColor = SKColor.Parse(curve.ColorHex);
+        var highlightColor = BrightenColour(baseColor);
+
         using var handleLinePaint = new SKPaint
         {
             Color = new SKColor(255, 255, 255, 50),
@@ -217,35 +318,45 @@ public partial class CurveCanvasControl : UserControl
             IsAntialias = true,
             PathEffect = SKPathEffect.CreateDash(new float[] { 4, 4 }, 0)
         };
-        using var handleDotPaint = new SKPaint { Color = new SKColor(138, 136, 160), IsAntialias = true };
-        using var pointFill = new SKPaint { Color = SKColor.Parse(curve.ColorHex), IsAntialias = true };
-        using var pointWhite = new SKPaint { Color = SKColors.White, IsAntialias = true };
-        using var pointRing = new SKPaint
+        using var handleDotPaint = new SKPaint
         {
-            Color = SKColor.Parse(curve.ColorHex),
-            IsStroke = true,
-            StrokeWidth = 2,
+            Color = new SKColor(138, 136, 160),
             IsAntialias = true
         };
 
         foreach (var pt in curve.Points)
         {
             var cp = ToCanvas(pt.X, pt.Y);
+            var ptColor = pt.IsSelected ? highlightColor : baseColor;
 
             if (pt.IsSelected)
             {
-                var lh = ToCanvas(pt.X + pt.LeftHandleX, pt.Y + pt.LeftHandleY);
-                var rh = ToCanvas(pt.X + pt.RightHandleX, pt.Y + pt.RightHandleY);
-                canvas.DrawLine(cp, lh, handleLinePaint);
-                canvas.DrawLine(cp, rh, handleLinePaint);
-                canvas.DrawCircle(lh, HandleRadius, handleDotPaint);
-                canvas.DrawCircle(rh, HandleRadius, handleDotPaint);
-                canvas.DrawCircle(cp, PointRadius + 2, pointRing);
-                canvas.DrawCircle(cp, PointRadius, pointWhite);
+                // Draw handles only for the single SelectedPoint to avoid clutter
+                if (pt == (DataContext as MainViewModel)?.SelectedPoint)
+                {
+                    var lh = ToCanvas(pt.X + pt.LeftHandleX, pt.Y + pt.LeftHandleY);
+                    var rh = ToCanvas(pt.X + pt.RightHandleX, pt.Y + pt.RightHandleY);
+                    canvas.DrawLine(cp, lh, handleLinePaint);
+                    canvas.DrawLine(cp, rh, handleLinePaint);
+                    canvas.DrawCircle(lh, HandleRadius, handleDotPaint);
+                    canvas.DrawCircle(rh, HandleRadius, handleDotPaint);
+                }
+
+                using var ringPaint = new SKPaint
+                {
+                    Color = highlightColor,
+                    IsStroke = true,
+                    StrokeWidth = 2,
+                    IsAntialias = true
+                };
+                using var fillPaint = new SKPaint { Color = highlightColor, IsAntialias = true };
+                canvas.DrawCircle(cp, PointRadius + 2, ringPaint);
+                canvas.DrawCircle(cp, PointRadius, fillPaint);
             }
             else
             {
-                canvas.DrawCircle(cp, PointRadius, pointFill);
+                using var fillPaint = new SKPaint { Color = ptColor, IsAntialias = true };
+                canvas.DrawCircle(cp, PointRadius, fillPaint);
             }
         }
     }
@@ -257,14 +368,15 @@ public partial class CurveCanvasControl : UserControl
         if (VM == null) return;
         SkiaElement.CaptureMouse();
         var pos = ToSKPoint(e.GetPosition(SkiaElement));
+        bool ctrl = Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl);
         _mouseDownPos = pos;
         _lastMouseCanvas = pos;
         _draggingPoint = null;
         _draggingHandle = false;
         _hasDragged = false;
 
-        // Check handle hit first (only if a point is selected)
-        if (VM.SelectedPoint != null)
+        // Handle hit (only for the single focus point)
+        if (VM.SelectedPoint != null && !ctrl)
         {
             var pt = VM.SelectedPoint;
             var rh = ToCanvas(pt.X + pt.RightHandleX, pt.Y + pt.RightHandleY);
@@ -279,39 +391,74 @@ public partial class CurveCanvasControl : UserControl
             }
         }
 
-        // Check point hit → select and prepare drag
-        var hit = HitPoint(pos, VM.ActiveCurve);
-        if (hit != null)
+        // Point hit
+        var hitPt = HitPoint(pos, VM.ActiveCurve);
+        if (hitPt != null)
         {
-            foreach (var p in VM.ActiveCurve.Points) p.IsSelected = false;
-            hit.IsSelected = true;
-            VM.SelectedPoint = hit;
-            _draggingPoint = hit;
+            if (ctrl)
+            {
+                // Ctrl+click toggles selection of this point
+                hitPt.IsSelected = !hitPt.IsSelected;
+                VM.SelectedPoint = hitPt.IsSelected ? hitPt : null;
+            }
+            else
+            {
+                // Plain click: clear all, select only this one
+                VM.ClearPointSelection();
+                hitPt.IsSelected = true;
+                VM.SelectedPoint = hitPt;
+                _draggingPoint = hitPt;
+            }
             Redraw();
             return;
         }
 
-        // Click on curve line → select the active curve (no-op if already active),
-        // or switch active curve if clicking a comparison curve
+        // Segment hit
+        var segIdx = HitSegment(pos, VM.ActiveCurve);
+        if (segIdx >= 0)
+        {
+            var sorted = VM.ActiveCurve.Points.OrderBy(p => p.X).ToList();
+            var p0 = sorted[segIdx];
+            var p1 = sorted[segIdx + 1];
+
+            if (ctrl)
+            {
+                // Ctrl+click segment: toggle both endpoints
+                bool willSelect = !(p0.IsSelected && p1.IsSelected);
+                p0.IsSelected = willSelect;
+                p1.IsSelected = willSelect;
+            }
+            else
+            {
+                // Plain click segment: clear all, select both endpoints
+                VM.ClearPointSelection();
+                p0.IsSelected = true;
+                p1.IsSelected = true;
+                VM.SelectedPoint = p0;
+            }
+            Redraw();
+            return;
+        }
+
+        // Click on comparison curve line → switch active curve
         foreach (var curve in VM.Document.Curves)
         {
-            if (!curve.IsVisible) continue;
-            if (HitCurve(pos, curve))
+            if (!curve.IsVisible || curve == VM.ActiveCurve) continue;
+            if (HitAnyCurve(pos, curve))
             {
-                if (curve != VM.ActiveCurve)
-                    VM.SetActiveCurveCommand.Execute(curve);
-                // Deselect any point
-                foreach (var p in VM.ActiveCurve.Points) p.IsSelected = false;
-                VM.SelectedPoint = null;
+                VM.SetActiveCurveCommand.Execute(curve);
+                VM.ClearPointSelection();
                 Redraw();
                 return;
             }
         }
 
-        // Click on empty space → deselect
-        foreach (var p in VM.ActiveCurve.Points) p.IsSelected = false;
-        VM.SelectedPoint = null;
-        Redraw();
+        // Click empty space (no ctrl) → deselect all
+        if (!ctrl)
+        {
+            VM.ClearPointSelection();
+            Redraw();
+        }
     }
 
     private void OnMouseMove(object sender, MouseEventArgs e)
@@ -322,18 +469,16 @@ public partial class CurveCanvasControl : UserControl
         _lastMouseCanvas = pos;
 
         if (e.LeftButton != MouseButtonState.Pressed) return;
-
-        // Mark as dragged if moved more than 3px
-        if (!_hasDragged && SKPoint.Distance(pos, _mouseDownPos) > 3f)
-            _hasDragged = true;
-
+        if (!_hasDragged && SKPoint.Distance(pos, _mouseDownPos) > 3f) _hasDragged = true;
         if (!_hasDragged) return;
 
         if (_draggingHandle && _draggingPoint != null)
         {
             var (dnx, dny) = DeltaToNorm(delta);
-            if (_draggingRightHandle) { _draggingPoint.RightHandleX += dnx; _draggingPoint.RightHandleY += dny; }
-            else { _draggingPoint.LeftHandleX += dnx; _draggingPoint.LeftHandleY += dny; }
+            if (_draggingRightHandle)
+            { _draggingPoint.RightHandleX += dnx; _draggingPoint.RightHandleY += dny; }
+            else
+            { _draggingPoint.LeftHandleX += dnx; _draggingPoint.LeftHandleY += dny; }
             Redraw();
             return;
         }
@@ -354,14 +499,13 @@ public partial class CurveCanvasControl : UserControl
         _draggingHandle = false;
     }
 
-    // ── Mouse: Double-click (add / remove points) ─────────────────────────
+    // ── Double-click: add / remove ────────────────────────────────────────
 
     private void OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (VM == null) return;
         var pos = ToSKPoint(e.GetPosition(SkiaElement));
 
-        // Double-click on existing point → remove it
         var hit = HitPoint(pos, VM.ActiveCurve);
         if (hit != null)
         {
@@ -371,7 +515,6 @@ public partial class CurveCanvasControl : UserControl
             return;
         }
 
-        // Double-click on empty canvas → add point
         var (nx, ny) = ToNorm(pos);
         if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1)
         {
@@ -380,15 +523,32 @@ public partial class CurveCanvasControl : UserControl
         }
     }
 
-    // ── Mouse: Right-click (context menu hook, reserved) ─────────────────
+    // ── Keyboard: Ctrl+A ──────────────────────────────────────────────────
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (VM == null) return;
+
+        if (e.Key == Key.A &&
+            (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)))
+        {
+            foreach (var pt in VM.ActiveCurve.Points)
+                pt.IsSelected = true;
+            VM.SelectedPoint = VM.ActiveCurve.Points.FirstOrDefault();
+            Redraw();
+            e.Handled = true;
+        }
+    }
+
+    // ── Right-click ───────────────────────────────────────────────────────
 
     private void OnRightMouseDown(object sender, MouseButtonEventArgs e)
     {
-        // Reserved for future context menu — no behaviour for now
         e.Handled = true;
     }
 
-    // ── Mouse: Wheel (zoom) ───────────────────────────────────────────────
+    // ── Wheel: zoom ───────────────────────────────────────────────────────
 
     private void OnMouseWheel(object sender, MouseWheelEventArgs e)
     {

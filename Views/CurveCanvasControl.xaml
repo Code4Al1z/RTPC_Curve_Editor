@@ -11,6 +11,7 @@
                     MouseMove="OnMouseMove"
                     MouseRightButtonDown="OnRightMouseDown"
                     MouseWheel="OnMouseWheel"
-                    Cursor="Cross"/>
+                    Cursor="Cross"
+					Focusable="True"/>
   </Border>
 </UserControl>

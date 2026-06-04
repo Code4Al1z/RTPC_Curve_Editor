@@ -156,7 +156,6 @@ public partial class MainViewModel : ObservableObject
 
         var selected = GetSelectedPoints();
 
-        // Need at least 2 selected points (the two boundary anchors) to apply
         if (selected.Count < 2)
         {
             Status("Select at least 2 points (or a segment) to apply a preset.");
@@ -165,69 +164,99 @@ public partial class MainViewModel : ObservableObject
 
         var leftBound = selected.First();
         var rightBound = selected.Last();
-
-        // Build new point list:
-        // Keep all points outside the selected region unchanged.
-        // Replace everything between leftBound and rightBound (inclusive)
-        // with the preset curve scaled to fit that region.
         var sorted = ActiveCurve.Points.OrderBy(p => p.X).ToList();
 
-        var outsideLeft = sorted.Where(p => p.X < leftBound.X).ToList();
-        var outsideRight = sorted.Where(p => p.X > rightBound.X).ToList();
+        bool isFullCurve = leftBound == sorted.First()
+                        && rightBound == sorted.Last()
+                        && selected.Count == sorted.Count;
 
-        // Scale preset points into the [leftBound.X .. rightBound.X] x range
-        // and [leftBound.Y .. rightBound.Y] y range
-        double xMin = leftBound.X, xMax = rightBound.X;
-        double yMin = leftBound.Y, yMax = rightBound.Y;
-        double xRange = xMax - xMin;
-        double yRange = yMax - yMin;
+        // Sample the preset at t=0.33 and t=0.67 to derive two handle offsets
+        // that approximate the preset shape between the two boundary points.
+        // This is the same approach Wwise uses — no new points, just handle adjustment.
+        double xRange = rightBound.X - leftBound.X;
+        double yRange = rightBound.Y - leftBound.Y;
 
-        // Use a subset of preset points that fit cleanly — skip first and last
-        // since we'll pin the boundary points exactly
-        var presetInner = SelectedPreset.Points
-            .Skip(1).Take(SelectedPreset.Points.Count - 2)
-            .Select(p => new CurvePoint(
-                xMin + p.X * xRange,
-                yMin + p.Y * yRange)
+        // Sample preset at 1/3 and 2/3 to get the shape's tangent influence
+        double y1 = SelectedPreset.Points.Count > 0
+            ? SamplePreset(SelectedPreset, 1.0 / 3.0)
+            : 1.0 / 3.0;
+        double y2 = SelectedPreset.Points.Count > 0
+            ? SamplePreset(SelectedPreset, 2.0 / 3.0)
+            : 2.0 / 3.0;
+
+        // Derive cubic Bézier handles that pass through those two sampled points.
+        // For a cubic Bézier from P0 to P3, the control points P1 and P2 satisfy:
+        // B(1/3) ≈ y1  →  P1.y ≈ (y1 - (8/27)*P0.y - (1/27)*P3.y) * (27/12)
+        // B(2/3) ≈ y2  →  P2.y ≈ (y2 - (1/27)*P0.y - (8/27)*P3.y) * (27/12)
+        // Simplified for normalised space where P0=0, P3=1:
+        double h1y = (y1 * 3.0 - 0.0);           // right handle Y of left point
+        double h2y = (y2 * 3.0 - 1.0);           // left handle Y of right point (inverted)
+
+        // Clamp to reasonable handle range
+        h1y = Math.Clamp(h1y, -1.0, 2.0);
+        h2y = Math.Clamp(h2y, -1.0, 2.0);
+
+        // Build new point list — same points, just updated handles on the boundaries
+        var newPoints = ActiveCurve.Points.Select(p => p.Clone()).ToList();
+        var newLeft = newPoints.First(p => Math.Abs(p.X - leftBound.X) < 1e-6);
+        var newRight = newPoints.First(p => Math.Abs(p.X - rightBound.X) < 1e-6);
+
+        // Right handle of left boundary point
+        newLeft.RightHandleX = xRange / 3.0;
+        newLeft.RightHandleY = h1y * yRange / 3.0;
+
+        // Left handle of right boundary point
+        newRight.LeftHandleX = -xRange / 3.0;
+        newRight.LeftHandleY = -h2y * yRange / 3.0;
+
+        // For full curve replace with just 2 points using the derived handles
+        if (isFullCurve)
+        {
+            var twoPoint = new List<CurvePoint>
+        {
+            new CurvePoint(0, 0)
             {
-                LeftHandleX = p.LeftHandleX * xRange,
-                LeftHandleY = p.LeftHandleY * yRange,
-                RightHandleX = p.RightHandleX * xRange,
-                RightHandleY = p.RightHandleY * yRange
-            })
-            .ToList();
-
-        // Pin boundary points exactly (preserve their handles outside the region)
-        var newLeft = leftBound.Clone();
-        var newRight = rightBound.Clone();
-
-        // Adjust boundary handles to blend into the preset
-        if (presetInner.Count > 0)
+                RightHandleX = xRange / 3.0,
+                RightHandleY = h1y * yRange / 3.0
+            },
+            new CurvePoint(1, 1)
+            {
+                LeftHandleX  = -xRange / 3.0,
+                LeftHandleY  = -h2y * yRange / 3.0
+            }
+        };
+            UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, twoPoint, SelectedPreset.Name));
+        }
+        else
         {
-            newLeft.RightHandleX = SelectedPreset.Points.First().RightHandleX * xRange;
-            newLeft.RightHandleY = SelectedPreset.Points.First().RightHandleY * yRange;
-            newRight.LeftHandleX = SelectedPreset.Points.Last().LeftHandleX * xRange;
-            newRight.LeftHandleY = SelectedPreset.Points.Last().LeftHandleY * yRange;
+            UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, newPoints, SelectedPreset.Name));
         }
 
-        var newPoints = outsideLeft
-            .Concat(new[] { newLeft })
-            .Concat(presetInner)
-            .Concat(new[] { newRight })
-            .Concat(outsideRight)
-            .ToList();
-
-        UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, newPoints, SelectedPreset.Name));
-
-        // Keep the boundary points selected so the user can see the affected region
-        // and try another preset immediately
+        // Keep selection so user can try another preset
         foreach (var p in ActiveCurve.Points)
-        {
-            p.IsSelected = p.X >= xMin - 1e-6 && p.X <= xMax + 1e-6;
-        }
+            p.IsSelected = p.X >= leftBound.X - 1e-6 && p.X <= rightBound.X + 1e-6;
 
         RaiseCurveChanged();
         Status($"Applied '{SelectedPreset.Name}' to selected region.");
+    }
+
+    /// Sample a preset's curve at a normalised x position using linear interpolation
+    /// between its defined points.
+    private static double SamplePreset(CurvePreset preset, double x)
+    {
+        var pts = preset.Points.OrderBy(p => p.X).ToList();
+        if (pts.Count == 0) return x;
+        if (x <= pts[0].X) return pts[0].Y;
+        if (x >= pts[^1].X) return pts[^1].Y;
+        for (int i = 0; i < pts.Count - 1; i++)
+        {
+            if (x >= pts[i].X && x <= pts[i + 1].X)
+            {
+                double t = (x - pts[i].X) / (pts[i + 1].X - pts[i].X);
+                return pts[i].Y + t * (pts[i + 1].Y - pts[i].Y);
+            }
+        }
+        return x;
     }
 
     // ── File operations ───────────────────────────────────────────────────
