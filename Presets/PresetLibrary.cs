@@ -58,7 +58,7 @@ public static class PresetLibrary
             Category    = "Wwise",
             Description = "sin²(x·π/2) — preserves total power during a crossfade. " +
                           "Use on the incoming signal of a crossfade pair.",
-            Points      = TwoPoint(0.0, 0.85, 0.0, 0.15)
+            Points      = TwoPoint(0.0, 0.6, 0.4, 0.1)
         },
 
         new CurvePreset
@@ -67,7 +67,7 @@ public static class PresetLibrary
             Category    = "Wwise",
             Description = "cos²(x·π/2) — power-preserving fade out. " +
                           "Use on the outgoing signal of a crossfade pair.",
-            Points      = TwoPoint(0.0, 0.15, 0.0, 0.85)
+            Points      = TwoPoint(0.1, 0.4, 0.0, 0.6)
         },
 
         new CurvePreset
@@ -76,17 +76,17 @@ public static class PresetLibrary
             Category    = "Wwise",
             Description = "Gentle exponential curve — slow start, moderate acceleration. " +
                           "Equivalent to Wwise's Exponential (Base 1.41).",
-            Points      = TwoPoint(0.0, 0.5, 0.5, 0.0)
+            Points      = TwoPoint(0.1, 0.4, 0.4, 0.1)
         },
 
         new CurvePreset
         {
-            Name        = "Exponential (Base 3)",
-            Category    = "Wwise",
+            Name     = "Exponential (Base 3)",
+            Category = "Wwise",
             Description = "Steep exponential — very slow start, dramatic finish. " +
                           "Equivalent to Wwise's Exponential (Base 3). " +
                           "Classic choice for volume RTPCs driven by distance.",
-            Points      = TwoPoint(0.0, 0.9, 0.9, 0.0)
+            Points   = TwoPoint(0.05, 0.45, 0.45, 0.05)
         },
 
         new CurvePreset
@@ -95,17 +95,17 @@ public static class PresetLibrary
             Category    = "Wwise",
             Description = "Gentle logarithmic — fast rise then gradual. " +
                           "Equivalent to Wwise's Logarithmic (Base 1.41).",
-            Points      = TwoPoint(0.5, 0.0, 0.0, 0.5)
+            Points      = TwoPoint(0.4, 0.1, 0.1, 0.4)
         },
 
         new CurvePreset
         {
-            Name        = "Logarithmic (Base 3)",
-            Category    = "Wwise",
+            Name     = "Logarithmic (Base 3)",
+            Category = "Wwise",
             Description = "Steep logarithmic — very fast initial rise, long plateau. " +
                           "Equivalent to Wwise's Logarithmic (Base 3). " +
                           "Use for reverb send RTPCs where initial effect matters most.",
-            Points      = TwoPoint(0.9, 0.0, 0.0, 0.9)
+            Points   = TwoPoint(0.45, 0.05, 0.05, 0.45)
         },
 
         // ── Psychoacoustic extras ─────────────────────────────────────────
@@ -118,7 +118,7 @@ public static class PresetLibrary
             Description = "Perceived loudness model: L = I^0.3 (Stevens, 1955). " +
                           "Maps a linear physical intensity RTPC to perceived equal-loudness steps. " +
                           "Use on Volume RTPCs driven by linear game parameters.",
-            Points      = TwoPoint(0.7, 0.0, 0.0, 0.3)
+            Points      = TwoPoint(0.4, 0.1, 0.1, 0.4)
         },
 
         new CurvePreset
@@ -127,7 +127,7 @@ public static class PresetLibrary
             Category    = "Psychoacoustic",
             Description = "Maps 0→1 to −60dB→0dB using A = 10^(dB/20). " +
                           "Sounds perceptually linear when driving a Wwise Volume RTPC.",
-            Points      = TwoPoint(0.0, 0.95, 0.95, 0.0)
+            Points      = TwoPoint(0.05, 0.45, 0.45, 0.05)
         },
 
         new CurvePreset
@@ -136,7 +136,7 @@ public static class PresetLibrary
             Category    = "Psychoacoustic",
             Description = "1/(1+x·k)² — physically accurate free-field attenuation " +
                           "with a soft near-field knee. Use for custom distance curves.",
-            Points      = TwoPoint(0.0, 0.8, 0.8, 0.0)
+            Points      = TwoPoint(0.05, 0.45, 0.45, 0.05)
         },
 
         new CurvePreset
@@ -145,7 +145,7 @@ public static class PresetLibrary
             Category    = "Psychoacoustic",
             Description = "sin²(x·π/2) expressed with precise handle placement. " +
                           "Mathematically identical to Wwise's Sine fade-in.",
-            Points      = TwoPoint(0.0, 0.85, 0.0, 0.15)
+            Points      = TwoPoint(0.0, 0.6, 0.4, 0.1)
         },
 
         new CurvePreset
@@ -154,7 +154,7 @@ public static class PresetLibrary
             Category    = "Psychoacoustic",
             Description = "Slow linear dry-out then equal-power wet-in. " +
                           "Use on a reverb send RTPC as the player enters a submerged space.",
-            Points      = TwoPoint(0.0, 0.7, 0.1, 0.3)
+            Points      = TwoPoint(0.1, 0.5, 0.3, 0.2)
         },
     };
 
