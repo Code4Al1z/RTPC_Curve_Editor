@@ -369,6 +369,11 @@ public partial class CurveCanvasControl : UserControl
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (VM == null) return;
+
+        // Explicitly focus the canvas and clear focus from any active TextBox
+        Focus();
+        Keyboard.ClearFocus();
+
         SkiaElement.CaptureMouse();
         var pos = ToSKPoint(e.GetPosition(SkiaElement));
         bool ctrl = Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl);
