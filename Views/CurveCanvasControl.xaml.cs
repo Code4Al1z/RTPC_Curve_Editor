@@ -4,6 +4,7 @@ using System.Windows.Input;
 using SkiaSharp;
 using SkiaSharp.Views.WPF;
 using SkiaSharp.Views.Desktop;
+using RTPCCurveEditor.Commands;
 using RTPCCurveEditor.Models;
 using RTPCCurveEditor.ViewModels;
 
@@ -28,6 +29,8 @@ public partial class CurveCanvasControl : UserControl
     private SKPoint _lastMouseCanvas;
     private float _zoom = 1f;
     private SKPoint _pan = SKPoint.Empty;
+    private double _dragStartX, _dragStartY;
+    private double _dragStartHandleX, _dragStartHandleY;
 
     public CurveCanvasControl()
     {
@@ -383,11 +386,15 @@ public partial class CurveCanvasControl : UserControl
             var lh = ToCanvas(pt.X + pt.LeftHandleX, pt.Y + pt.LeftHandleY);
             if (SKPoint.Distance(pos, rh) < HitRadius)
             {
-                _draggingHandle = true; _draggingRightHandle = true; _draggingPoint = pt; return;
+                _draggingHandle = true; _draggingRightHandle = true; _draggingPoint = pt;
+                _dragStartHandleX = pt.RightHandleX; _dragStartHandleY = pt.RightHandleY;
+                return;
             }
             if (SKPoint.Distance(pos, lh) < HitRadius)
             {
-                _draggingHandle = true; _draggingRightHandle = false; _draggingPoint = pt; return;
+                _draggingHandle = true; _draggingRightHandle = false; _draggingPoint = pt;
+                _dragStartHandleX = pt.LeftHandleX; _dragStartHandleY = pt.LeftHandleY;
+                return;
             }
         }
 
@@ -408,6 +415,8 @@ public partial class CurveCanvasControl : UserControl
                 hitPt.IsSelected = true;
                 VM.SelectedPoint = hitPt;
                 _draggingPoint = hitPt;
+                _dragStartX = hitPt.X;
+                _dragStartY = hitPt.Y;
             }
             Redraw();
             return;
@@ -495,8 +504,46 @@ public partial class CurveCanvasControl : UserControl
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
     {
         SkiaElement.ReleaseMouseCapture();
+
+        if (_hasDragged && _draggingPoint != null && VM != null)
+        {
+            if (_draggingHandle)
+            {
+                double newX = _draggingRightHandle ? _draggingPoint.RightHandleX : _draggingPoint.LeftHandleX;
+                double newY = _draggingRightHandle ? _draggingPoint.RightHandleY : _draggingPoint.LeftHandleY;
+
+                // Revert direct mutation first so command execution handles undo cleanly
+                if (_draggingRightHandle)
+                {
+                    _draggingPoint.RightHandleX = _dragStartHandleX;
+                    _draggingPoint.RightHandleY = _dragStartHandleY;
+                }
+                else
+                {
+                    _draggingPoint.LeftHandleX = _dragStartHandleX;
+                    _draggingPoint.LeftHandleY = _dragStartHandleY;
+                }
+
+                VM.UndoRedo.Execute(new MoveHandleCommand(
+                    _draggingPoint, _draggingRightHandle,
+                    _dragStartHandleX, _dragStartHandleY, newX, newY));
+            }
+            else
+            {
+                double newX = _draggingPoint.X;
+                double newY = _draggingPoint.Y;
+
+                // Revert direct mutation first so command execution handles undo cleanly
+                _draggingPoint.X = _dragStartX;
+                _draggingPoint.Y = _dragStartY;
+
+                VM.MovePoint(_draggingPoint, newX, newY);
+            }
+        }
+
         _draggingPoint = null;
         _draggingHandle = false;
+        _hasDragged = false;
     }
 
     // ── Double-click: add / remove ────────────────────────────────────────
