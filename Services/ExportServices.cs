@@ -86,7 +86,7 @@ public static class PngExportService
 
         using var image = surface.Snapshot();
         using var data  = image.Encode(SKEncodedImageFormat.Png, 100);
-        using var stream = File.OpenWrite(filePath);
+        using var stream = File.Create(filePath);
         data.SaveTo(stream);
     }
 }
