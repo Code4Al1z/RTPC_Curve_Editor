@@ -155,7 +155,6 @@ public partial class MainViewModel : ObservableObject
         if (SelectedPreset == null) return;
 
         var selected = GetSelectedPoints();
-
         if (selected.Count < 2)
         {
             Status("Select at least 2 points (or a segment) to apply a preset.");
@@ -168,29 +167,16 @@ public partial class MainViewModel : ObservableObject
         double xRange = rightBound.X - leftBound.X;
         double yRange = rightBound.Y - leftBound.Y;
 
-        // Read handle values directly from the preset's two boundary points
-        // (already normalised 0..1) and scale to the actual region size
         var presetLeft = SelectedPreset.Points.OrderBy(p => p.X).First();
         var presetRight = SelectedPreset.Points.OrderBy(p => p.X).Last();
 
-        var newPoints = ActiveCurve.Points.Select(p => p.Clone()).ToList();
-        var newLeft = newPoints.First(p => Math.Abs(p.X - leftBound.X) < 1e-6);
-        var newRight = newPoints.First(p => Math.Abs(p.X - rightBound.X) < 1e-6);
-
-        // Scale preset handles to the region
-        newLeft.RightHandleX = presetLeft.RightHandleX * xRange;
-        newLeft.RightHandleY = presetLeft.RightHandleY * yRange;
-        newRight.LeftHandleX = presetRight.LeftHandleX * xRange;
-        newRight.LeftHandleY = presetRight.LeftHandleY * yRange;
-
         var sorted = ActiveCurve.Points.OrderBy(p => p.X).ToList();
-        bool isFullCurve = leftBound == sorted.First()
-                        && rightBound == sorted.Last()
+        bool isFullCurve = Math.Abs(leftBound.X - sorted.First().X) < 1e-6
+                        && Math.Abs(rightBound.X - sorted.Last().X) < 1e-6
                         && selected.Count == sorted.Count;
 
         if (isFullCurve)
         {
-            // Full curve — reduce to 2 clean points with preset handles
             var twoPoint = new List<CurvePoint>
         {
             new CurvePoint(0, 0)
@@ -208,11 +194,36 @@ public partial class MainViewModel : ObservableObject
         }
         else
         {
-            UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, newPoints, SelectedPreset.Name));
+            // Preserve unselected points outside the bounds, remove internal points, and map handles to boundary points
+            var newPoints = new List<CurvePoint>();
+            foreach (var p in sorted)
+            {
+                if (p.X < leftBound.X - 1e-6 || p.X > rightBound.X + 1e-6)
+                {
+                    newPoints.Add(p.Clone());
+                }
+            }
+
+            var newLeft = leftBound.Clone();
+            var newRight = rightBound.Clone();
+
+            newLeft.RightHandleX = presetLeft.RightHandleX * xRange;
+            newLeft.RightHandleY = presetLeft.RightHandleY * yRange;
+            newRight.LeftHandleX = presetRight.LeftHandleX * xRange;
+            newRight.LeftHandleY = presetRight.LeftHandleY * yRange;
+
+            newPoints.Add(newLeft);
+            newPoints.Add(newRight);
+
+            UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, newPoints.OrderBy(p => p.X).ToList(), SelectedPreset.Name));
         }
 
+        // Re-bind selection state to the new point objects created by the command
         foreach (var p in ActiveCurve.Points)
+        {
             p.IsSelected = p.X >= leftBound.X - 1e-6 && p.X <= rightBound.X + 1e-6;
+        }
+        SelectedPoint = ActiveCurve.Points.FirstOrDefault(p => p.IsSelected);
 
         RaiseCurveChanged();
         Status($"Applied '{SelectedPreset.Name}' to selected region.");
