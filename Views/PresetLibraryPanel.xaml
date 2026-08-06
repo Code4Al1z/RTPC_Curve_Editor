@@ -52,29 +52,29 @@
                    Foreground="#5A5870"/>
       </Border>
 
-      <!-- List -->
-      <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <ListBox ItemsSource="{Binding FilteredPresets}"
-                 SelectedItem="{Binding SelectedPreset}"
-                 Margin="4,0">
-          <ListBox.GroupStyle>
-            <GroupStyle>
-              <GroupStyle.HeaderTemplate>
-                <DataTemplate>
-					<TextBlock Text="{Binding Name}"
-			         FontSize="10" FontWeight="SemiBold"
-			         Foreground="#4A4860" Margin="6,8,0,2"/>
-                </DataTemplate>
-              </GroupStyle.HeaderTemplate>
-            </GroupStyle>
-          </ListBox.GroupStyle>
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <TextBlock Text="{Binding Name}" FontSize="12"/>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-      </ScrollViewer>
+		<!-- List -->
+		<ScrollViewer VerticalScrollBarVisibility="Auto">
+			<ListBox ItemsSource="{Binding PresetsView}"
+					 SelectedItem="{Binding SelectedPreset}"
+					 Margin="4,0">
+				<ListBox.GroupStyle>
+					<GroupStyle>
+						<GroupStyle.HeaderTemplate>
+							<DataTemplate>
+								<TextBlock Text="{Binding Name}"
+										   FontSize="10" FontWeight="SemiBold"
+										   Foreground="#4A4860" Margin="6,8,0,2"/>
+							</DataTemplate>
+						</GroupStyle.HeaderTemplate>
+					</GroupStyle>
+				</ListBox.GroupStyle>
+				<ListBox.ItemTemplate>
+					<DataTemplate>
+						<TextBlock Text="{Binding Name}" FontSize="12"/>
+					</DataTemplate>
+				</ListBox.ItemTemplate>
+			</ListBox>
+		</ScrollViewer>
 
     </DockPanel>
   </Border>

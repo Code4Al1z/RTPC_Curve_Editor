@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -35,10 +37,16 @@ public partial class MainViewModel : ObservableObject
 
     private string? _currentFilePath;
 
+    public ICollectionView PresetsView { get; } // Expose grouped CollectionView
+
     public MainViewModel()
     {
         _activeCurve = Document.PrimaryCurve;
         RefreshAllCurves();
+
+        // Create and configure grouping for the preset library view
+        PresetsView = CollectionViewSource.GetDefaultView(FilteredPresets);
+        PresetsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CurvePreset.Category)));
 
         UndoRedo.StackChanged += () =>
         {
