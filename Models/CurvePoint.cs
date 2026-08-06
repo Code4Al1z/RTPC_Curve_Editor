@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace RTPCCurveEditor.Models;
 
@@ -6,10 +7,10 @@ namespace RTPCCurveEditor.Models;
 /// A single point on the RTPC curve, with Bézier control handles.
 /// X and Y are normalised 0..1 — the export layer maps them to real Wwise ranges.
 /// </summary>
-public class CurvePoint
+public partial class CurvePoint : ObservableObject
 {
-    public double X { get; set; }
-    public double Y { get; set; }
+    [ObservableProperty] private double _x;
+    [ObservableProperty] private double _y;
 
     // Left and right tangent handles, expressed as offsets from the anchor point.
     public double LeftHandleX { get; set; } = -0.05;
@@ -18,7 +19,7 @@ public class CurvePoint
     public double RightHandleY { get; set; } = 0.0;
 
     [JsonIgnore]
-    public bool IsSelected { get; set; }
+    [ObservableProperty] private bool _isSelected;
 
     public CurvePoint() { }
 
@@ -30,8 +31,12 @@ public class CurvePoint
 
     public CurvePoint Clone() => new()
     {
-        X = X, Y = Y,
-        LeftHandleX = LeftHandleX, LeftHandleY = LeftHandleY,
-        RightHandleX = RightHandleX, RightHandleY = RightHandleY
+        X = X,
+        Y = Y,
+        LeftHandleX = LeftHandleX,
+        LeftHandleY = LeftHandleY,
+        RightHandleX = RightHandleX,
+        RightHandleY = RightHandleY,
+        IsSelected = IsSelected
     };
 }
