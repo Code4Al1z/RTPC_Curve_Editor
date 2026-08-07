@@ -49,6 +49,9 @@ public partial class MainViewModel : ObservableObject
 
         RefreshAllCurves();
 
+        // Re-render canvas live whenever document range properties (InputMin/Max, OutputMin/Max) change
+        Document.PropertyChanged += (s, e) => RaiseCurveChanged();
+
         // Create and configure grouping for the preset library view
         PresetsView = CollectionViewSource.GetDefaultView(FilteredPresets);
         PresetsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CurvePreset.Category)));
@@ -68,6 +71,20 @@ public partial class MainViewModel : ObservableObject
         foreach (var c in Document.Curves)
             AllCurves.Add(c);
     }
+
+    // Re-hooks range property listeners whenever Document is replaced
+    partial void OnDocumentChanged(CurveDocument? oldValue, CurveDocument newValue)
+    {
+        if (oldValue != null)
+            oldValue.PropertyChanged -= OnDocumentPropertyChanged;
+
+        if (newValue != null)
+            newValue.PropertyChanged += OnDocumentPropertyChanged;
+
+        RaiseCurveChanged();
+    }
+
+    private void OnDocumentPropertyChanged(object? sender, PropertyChangedEventArgs e) => RaiseCurveChanged();
 
     // ── Undo/Redo ─────────────────────────────────────────────────────────
 
@@ -196,14 +213,15 @@ public partial class MainViewModel : ObservableObject
 
         if (isFullCurve)
         {
+            // Use presetLeft.X / presetLeft.Y so Fade Out starts at Y = 1 instead of Y = 0
             var twoPoint = new List<CurvePoint>
         {
-            new CurvePoint(0, 0)
+            new CurvePoint(presetLeft.X, presetLeft.Y)
             {
                 RightHandleX = presetLeft.RightHandleX,
                 RightHandleY = presetLeft.RightHandleY
             },
-            new CurvePoint(1, 1)
+            new CurvePoint(presetRight.X, presetRight.Y)
             {
                 LeftHandleX  = presetRight.LeftHandleX,
                 LeftHandleY  = presetRight.LeftHandleY
@@ -213,7 +231,6 @@ public partial class MainViewModel : ObservableObject
         }
         else
         {
-            // Preserve unselected points outside the bounds, remove internal points, and map handles to boundary points
             var newPoints = new List<CurvePoint>();
             foreach (var p in sorted)
             {
@@ -237,7 +254,6 @@ public partial class MainViewModel : ObservableObject
             UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, newPoints.OrderBy(p => p.X).ToList(), SelectedPreset.Name));
         }
 
-        // Re-bind selection state to the new point objects created by the command
         foreach (var p in ActiveCurve.Points)
         {
             p.IsSelected = p.X >= leftBound.X - 1e-6 && p.X <= rightBound.X + 1e-6;

@@ -213,27 +213,70 @@ public partial class CurveCanvasControl : UserControl
 
     private void DrawAxes(SKCanvas canvas)
     {
+        if (VM == null) return;
+
         using var axisPaint = new SKPaint
         {
             Color = new SKColor(255, 255, 255, 55),
             StrokeWidth = 1.5f,
             IsAntialias = true
         };
+        using var zeroLinePaint = new SKPaint
+        {
+            Color = new SKColor(100, 180, 255, 120),
+            StrokeWidth = 1.5f,
+            IsAntialias = true
+        };
         using var labelFont = new SKFont(SKTypeface.Default, 11);
         using var labelPaint = new SKPaint { Color = new SKColor(138, 136, 160), IsAntialias = true };
 
+        // Fixed plot boundary frame
         canvas.DrawLine(ToCanvas(0, 0), ToCanvas(1, 0), axisPaint);
         canvas.DrawLine(ToCanvas(0, 0), ToCanvas(0, 1), axisPaint);
 
+        double inMin = VM.Document.InputMin, inMax = VM.Document.InputMax;
+        double outMin = VM.Document.OutputMin, outMax = VM.Document.OutputMax;
+
+        // Draw Y = 0 origin line if Output range spans negative to positive
+        if (outMin < 0 && outMax > 0)
+        {
+            double zeroYNorm = (0.0 - outMin) / (outMax - outMin);
+            var p0 = ToCanvas(0, zeroYNorm);
+            var p1 = ToCanvas(1, zeroYNorm);
+            canvas.DrawLine(p0, p1, zeroLinePaint);
+        }
+
+        // Draw X = 0 origin line if Input range spans negative to positive
+        if (inMin < 0 && inMax > 0)
+        {
+            double zeroXNorm = (0.0 - inMin) / (inMax - inMin);
+            var p0 = ToCanvas(zeroXNorm, 0);
+            var p1 = ToCanvas(zeroXNorm, 1);
+            canvas.DrawLine(p0, p1, zeroLinePaint);
+        }
+
+        // Calculate actual normalized bounds visible inside the canvas plot region
+        var (visNormMinX, visNormMaxY) = ToNorm(new SKPoint(CanvasPadding, CanvasPadding));
+        var (visNormMaxX, visNormMinY) = ToNorm(new SKPoint(CanvasWidth - CanvasPadding, CanvasHeight - CanvasPadding));
+
+        // Convert visible normalized bounds to actual parameter units
+        double visInMin = inMin + visNormMinX * (inMax - inMin);
+        double visInMax = inMin + visNormMaxX * (inMax - inMin);
+        double visOutMin = outMin + visNormMinY * (outMax - outMin);
+        double visOutMax = outMin + visNormMaxY * (outMax - outMin);
+
+        // Draw 5 dynamic ticks across the visible view
         for (int i = 0; i <= 5; i++)
         {
             double t = (double)i / 5;
-            double xVal = VM!.Document.InputMin + t * (VM.Document.InputMax - VM.Document.InputMin);
-            double yVal = VM!.Document.OutputMin + t * (VM.Document.OutputMax - VM.Document.OutputMin);
-            var xPos = ToCanvas(t, 0);
-            var yPos = ToCanvas(0, t);
-            canvas.DrawText(xVal.ToString("F0"), xPos.X - 8, xPos.Y + 16, SKTextAlign.Left, labelFont, labelPaint);
-            canvas.DrawText(yVal.ToString("F2"), 4, yPos.Y + 4, SKTextAlign.Left, labelFont, labelPaint);
+            double xVal = visInMin + t * (visInMax - visInMin);
+            double yVal = visOutMin + t * (visOutMax - visOutMin);
+
+            float screenX = CanvasPadding + (float)t * (CanvasWidth - CanvasPadding * 2f);
+            float screenY = CanvasHeight - CanvasPadding - (float)t * (CanvasHeight - CanvasPadding * 2f);
+
+            canvas.DrawText(xVal.ToString("F1"), screenX - 10f, CanvasHeight - CanvasPadding + 18f, SKTextAlign.Left, labelFont, labelPaint);
+            canvas.DrawText(yVal.ToString("F1"), 4f, screenY + 4f, SKTextAlign.Left, labelFont, labelPaint);
         }
     }
 
@@ -612,8 +655,33 @@ public partial class CurveCanvasControl : UserControl
 
     private void OnMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        float factor = e.Delta > 0 ? 1.1f : 0.9f;
-        _zoom = Math.Clamp(_zoom * factor, 0.5f, 4f);
+        var mousePos = ToSKPoint(e.GetPosition(SkiaElement));
+
+        // Get normalized curve point directly under mouse cursor before zoom
+        var (nx, ny) = ToNorm(mousePos);
+
+        // Calculate new zoom factor
+        float zoomFactor = e.Delta > 0 ? 1.15f : 1.0f / 1.15f;
+        float newZoom = Math.Clamp(_zoom * zoomFactor, 1.0f, 8.0f);
+
+        if (Math.Abs(newZoom - _zoom) < 0.001f) return;
+
+        _zoom = newZoom;
+
+        // Recalculate pan so the point under the cursor stays at the same screen position
+        float newPlotW = (CanvasWidth - CanvasPadding * 2) * _zoom;
+        float newPlotH = (CanvasHeight - CanvasPadding * 2) * _zoom;
+
+        _pan.X = mousePos.X - CanvasPadding - (float)nx * newPlotW;
+        _pan.Y = mousePos.Y - (CanvasHeight - CanvasPadding) + (float)ny * newPlotH;
+
+        // Reset pan if zoomed all the way out to keep bottom-left origin locked
+        if (_zoom <= 1.001f)
+        {
+            _zoom = 1.0f;
+            _pan = SKPoint.Empty;
+        }
+
         Redraw();
     }
 
