@@ -245,13 +245,17 @@ public partial class CurveCanvasControl : UserControl
         var highlightColor = BrightenColour(baseColor);
         var sorted = curve.Points.OrderBy(p => p.X).ToList();
 
-        var poly = curve.GetPolyline(300);
+        // Fill and glow using smooth parametric polyline
+        var poly = curve.GetPolyline(100);
+        if (poly.Count < 2) return;
+
         using var fillPath = new SKPath();
         fillPath.MoveTo(ToCanvas(poly[0].X, poly[0].Y));
         foreach (var (x, y) in poly.Skip(1)) fillPath.LineTo(ToCanvas(x, y));
         fillPath.LineTo(ToCanvas(poly[^1].X, 0));
         fillPath.LineTo(ToCanvas(poly[0].X, 0));
         fillPath.Close();
+
         using var fillPaint = new SKPaint
         {
             Color = baseColor.WithAlpha((byte)(alpha / 8)),
@@ -277,6 +281,7 @@ public partial class CurveCanvasControl : UserControl
             canvas.DrawPath(glowPath, glowPaint);
         }
 
+        // Draw individual segments using parametric t-sampling
         for (int s = 0; s < sorted.Count - 1; s++)
         {
             var p0 = sorted[s];
@@ -286,16 +291,21 @@ public partial class CurveCanvasControl : UserControl
             SKColor strokeColor = segSelected ? highlightColor : baseColor;
             float strokeWidth = segSelected ? 3.5f : (isActive ? 2.5f : 1.5f);
 
-            int steps = 60;
+            double p0x = p0.X, p0y = p0.Y;
+            double c0x = p0.X + p0.RightHandleX, c0y = p0.Y + p0.RightHandleY;
+            double c1x = p1.X + p1.LeftHandleX, c1y = p1.Y + p1.LeftHandleY;
+            double p1x = p1.X, p1y = p1.Y;
+
+            int steps = 100;
             using var segPath = new SKPath();
-            bool first = true;
             for (int i = 0; i <= steps; i++)
             {
                 double t = (double)i / steps;
-                double x = p0.X + t * (p1.X - p0.X);
-                double y = curve.Sample(x);
+                double x = BezierCurve.CubicBezier(p0x, c0x, c1x, p1x, t);
+                double y = BezierCurve.CubicBezier(p0y, c0y, c1y, p1y, t);
                 var cp = ToCanvas(x, y);
-                if (first) { segPath.MoveTo(cp); first = false; }
+
+                if (i == 0) segPath.MoveTo(cp);
                 else segPath.LineTo(cp);
             }
 

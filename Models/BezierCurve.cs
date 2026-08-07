@@ -38,12 +38,89 @@ public class BezierCurve
     }
 
     /// <summary>
-    /// Sample a single cubic Bézier segment via numerical root-finding on t,
-    /// then evaluate Y(t).
+    /// Recalculates tangent handles for all points to produce smooth, continuous curves
+    /// without flat "ease-in" kinks or artificial breaks at the endpoints.
     /// </summary>
+    public void AutoSmoothHandles()
+    {
+        if (Points.Count < 2) return;
+
+        var sorted = Points.OrderBy(p => p.X).ToList();
+
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            var current = sorted[i];
+
+            if (i == 0)
+            {
+                // Start point: align right handle toward next point
+                var next = sorted[1];
+                double dx = Math.Max(1e-5, next.X - current.X);
+                double dy = next.Y - current.Y;
+                double slope = dy / dx;
+
+                double lenX = dx / 3.0;
+                current.RightHandleX = lenX;
+                current.RightHandleY = slope * lenX;
+                current.LeftHandleX = -lenX;
+                current.LeftHandleY = -slope * lenX;
+            }
+            else if (i == sorted.Count - 1)
+            {
+                // End point: align left handle toward previous point
+                var prev = sorted[i - 1];
+                double dx = Math.Max(1e-5, current.X - prev.X);
+                double dy = current.Y - prev.Y;
+                double slope = dy / dx;
+
+                double lenX = dx / 3.0;
+                current.LeftHandleX = -lenX;
+                current.LeftHandleY = -slope * lenX;
+                current.RightHandleX = lenX;
+                current.RightHandleY = slope * lenX;
+            }
+            else
+            {
+                // Interior point: centered finite-difference slope across neighbors
+                var prev = sorted[i - 1];
+                var next = sorted[i + 1];
+
+                double dxLeft = Math.Max(1e-5, current.X - prev.X);
+                double dxRight = Math.Max(1e-5, next.X - current.X);
+                double totalDx = Math.Max(1e-5, next.X - prev.X);
+                double totalDy = next.Y - prev.Y;
+
+                double slope = totalDy / totalDx;
+
+                current.LeftHandleX = -dxLeft / 3.0;
+                current.LeftHandleY = -slope * (dxLeft / 3.0);
+
+                current.RightHandleX = dxRight / 3.0;
+                current.RightHandleY = slope * (dxRight / 3.0);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ensures endpoint anchors snap cleanly to X = 0.0 and X = 1.0.
+    /// </summary>
+    public void EnsureEndpoints()
+    {
+        if (Points.Count == 0)
+        {
+            Points.Add(new CurvePoint(0.0, 0.0));
+            Points.Add(new CurvePoint(1.0, 1.0));
+            AutoSmoothHandles();
+            return;
+        }
+
+        var sorted = Points.OrderBy(p => p.X).ToList();
+        sorted[0].X = 0.0;
+        sorted[^1].X = 1.0;
+    }
+
     private static double SampleSegment(CurvePoint p0, CurvePoint p1, double targetX)
     {
-        // Control points in absolute space
         double ax = p0.X, ay = p0.Y;
         double bx = p0.X + p0.RightHandleX, by = p0.Y + p0.RightHandleY;
         double cx = p1.X + p1.LeftHandleX, cy = p1.Y + p1.LeftHandleY;
@@ -53,10 +130,6 @@ public class BezierCurve
         return CubicBezier(ay, by, cy, dy, t);
     }
 
-    /// <summary>
-    /// Inserts a new point on the curve at targetX without altering the curve shape.
-    /// Uses de Casteljau's algorithm to split the cubic Bézier segment smoothly.
-    /// </summary>
     public CurvePoint InsertPointSeamlessly(double targetX)
     {
         targetX = Math.Clamp(targetX, 0.0, 1.0);
@@ -86,16 +159,13 @@ public class BezierCurve
 
             if (targetX >= p0.X && targetX <= p1.X)
             {
-                // Control points in absolute coordinates
                 double p0x = p0.X, p0y = p0.Y;
                 double c0x = p0.X + p0.RightHandleX, c0y = p0.Y + p0.RightHandleY;
                 double c1x = p1.X + p1.LeftHandleX, c1y = p1.Y + p1.LeftHandleY;
                 double p1x = p1.X, p1y = p1.Y;
 
-                // Parameter t for targetX
                 double t = SolveTForX(targetX, p0x, c0x, c1x, p1x);
 
-                // De Casteljau subdivision (Level 1)
                 double q1x = (1 - t) * p0x + t * c0x;
                 double q1y = (1 - t) * p0y + t * c0y;
 
@@ -105,25 +175,21 @@ public class BezierCurve
                 double r2x = (1 - t) * c1x + t * p1x;
                 double r2y = (1 - t) * c1y + t * p1y;
 
-                // De Casteljau subdivision (Level 2)
                 double q2x = (1 - t) * q1x + t * hx;
                 double q2y = (1 - t) * q1y + t * hy;
 
                 double r1x = (1 - t) * hx + t * r2x;
                 double r1y = (1 - t) * hy + t * r2y;
 
-                // De Casteljau subdivision (Level 3 - exact point on curve)
                 double px = (1 - t) * q2x + t * r1x;
                 double py = (1 - t) * q2y + t * r1y;
 
-                // Update original endpoints' handles as relative offsets
                 p0.RightHandleX = q1x - p0x;
                 p0.RightHandleY = q1y - p0y;
 
                 p1.LeftHandleX = r2x - p1x;
                 p1.LeftHandleY = r2y - p1y;
 
-                // Create new point with exact sub-segment relative handles
                 var insertedPoint = new CurvePoint
                 {
                     X = px,
@@ -182,7 +248,7 @@ public class BezierCurve
         return Math.Clamp(t, 0.0, 1.0);
     }
 
-    private static double CubicBezier(double p0, double p1, double p2, double p3, double t)
+    internal static double CubicBezier(double p0, double p1, double p2, double p3, double t)
     {
         double mt = 1 - t;
         return mt * mt * mt * p0
@@ -199,16 +265,50 @@ public class BezierCurve
              + 3.0 * t * t * (p3 - p2);
     }
 
-    // --- Polyline for rendering -------------------------------------------
-
-    public List<(double X, double Y)> GetPolyline(int steps = 200)
+    /// <summary>
+    /// Return a list of (x, y) samples drawn directly in parametric t-space.
+    /// Automatically places dense samples along steep curves to prevent polyline kinks.
+    /// </summary>
+    public List<(double X, double Y)> GetPolyline(int stepsPerSegment = 100)
     {
-        var result = new List<(double, double)>(steps + 1);
-        for (int i = 0; i <= steps; i++)
+        var result = new List<(double X, double Y)>();
+        if (Points.Count == 0) return result;
+
+        var sorted = Points.OrderBy(p => p.X).ToList();
+        if (sorted.Count == 1)
         {
-            double x = (double)i / steps;
-            result.Add((x, Sample(x)));
+            result.Add((0.0, sorted[0].Y));
+            result.Add((1.0, sorted[0].Y));
+            return result;
         }
+
+        if (sorted[0].X > 0)
+            result.Add((0.0, sorted[0].Y));
+
+        for (int i = 0; i < sorted.Count - 1; i++)
+        {
+            var p0 = sorted[i];
+            var p1 = sorted[i + 1];
+
+            double p0x = p0.X, p0y = p0.Y;
+            double c0x = p0.X + p0.RightHandleX, c0y = p0.Y + p0.RightHandleY;
+            double c1x = p1.X + p1.LeftHandleX, c1y = p1.Y + p1.LeftHandleY;
+            double p1x = p1.X, p1y = p1.Y;
+
+            for (int s = 0; s <= stepsPerSegment; s++)
+            {
+                if (i > 0 && s == 0) continue; // avoid duplicate boundary points
+
+                double t = (double)s / stepsPerSegment;
+                double x = CubicBezier(p0x, c0x, c1x, p1x, t);
+                double y = CubicBezier(p0y, c0y, c1y, p1y, t);
+                result.Add((x, y));
+            }
+        }
+
+        if (sorted[^1].X < 1.0)
+            result.Add((1.0, sorted[^1].Y));
+
         return result;
     }
 

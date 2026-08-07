@@ -42,6 +42,11 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         _activeCurve = Document.PrimaryCurve;
+
+        // Auto-smooth initial default curve handles
+        _activeCurve.EnsureEndpoints();
+        _activeCurve.AutoSmoothHandles();
+
         RefreshAllCurves();
 
         // Create and configure grouping for the preset library view
@@ -80,8 +85,14 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ClearCurve()
     {
-        UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve,
-            new List<CurvePoint> { new(0, 0), new(1, 1) }, "Clear"));
+        var clearedPoints = new List<CurvePoint> { new(0, 0), new(1, 1) };
+
+        // Apply smoothing to cleared template
+        var tempCurve = new BezierCurve { Points = clearedPoints };
+        tempCurve.EnsureEndpoints();
+        tempCurve.AutoSmoothHandles();
+
+        UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, tempCurve.Points, "Clear"));
         SelectedPoint = null;
         ClearPointSelection();
         RaiseCurveChanged();
@@ -245,6 +256,11 @@ public partial class MainViewModel : ObservableObject
         if (!ConfirmDiscard()) return;
         Document = CurveDocument.CreateDefault();
         ActiveCurve = Document.PrimaryCurve;
+
+        // Auto-smooth initial document curve
+        ActiveCurve.EnsureEndpoints();
+        ActiveCurve.AutoSmoothHandles();
+
         SelectedPoint = null;
         _currentFilePath = null;
         UndoRedo.Clear();
@@ -409,6 +425,11 @@ public partial class MainViewModel : ObservableObject
         };
         curve.Points.Add(new CurvePoint(0, 0));
         curve.Points.Add(new CurvePoint(1, 1));
+
+        // Auto-smooth new comparison curve
+        curve.EnsureEndpoints();
+        curve.AutoSmoothHandles();
+
         Document.Curves.Add(curve);
         RefreshAllCurves();
         Status($"Added {curve.Name}.");
