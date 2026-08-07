@@ -35,6 +35,20 @@ public partial class CurveCanvasControl : UserControl
     public CurveCanvasControl()
     {
         InitializeComponent();
+
+        // Force render on startup
+        Loaded += (s, e) => SkiaElement?.InvalidateVisual();
+
+        // Force render when ViewModel/DataContext attaches or updates
+        DataContextChanged += (s, e) =>
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                vm.PropertyChanged += (sender, args) => SkiaElement?.InvalidateVisual();
+            }
+            SkiaElement?.InvalidateVisual();
+        };
+
         MouseDoubleClick += OnMouseDoubleClick;
     }
 
