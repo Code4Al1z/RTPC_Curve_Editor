@@ -11,7 +11,7 @@ public class BezierCurve
     public string ColorHex { get; set; } = "#7F77DD";
     public bool IsVisible { get; set; } = true;
 
-    // --- Sampling ---------------------------------------------------------
+    // --- Sampling & Editing -----------------------------------------------
 
     /// <summary>
     /// Evaluate the curve Y value at a given normalised X (0..1).
@@ -53,6 +53,96 @@ public class BezierCurve
         return CubicBezier(ay, by, cy, dy, t);
     }
 
+    /// <summary>
+    /// Inserts a new point on the curve at targetX without altering the curve shape.
+    /// Uses de Casteljau's algorithm to split the cubic Bézier segment smoothly.
+    /// </summary>
+    public CurvePoint InsertPointSeamlessly(double targetX)
+    {
+        targetX = Math.Clamp(targetX, 0.0, 1.0);
+
+        if (Points.Count == 0)
+        {
+            var p = new CurvePoint(targetX, 0.5);
+            Points.Add(p);
+            return p;
+        }
+
+        var sorted = Points.OrderBy(p => p.X).ToList();
+
+        if (Points.Count == 1 || targetX <= sorted[0].X || targetX >= sorted[^1].X)
+        {
+            double y = Sample(targetX);
+            var p = new CurvePoint(targetX, y);
+            Points.Add(p);
+            Points = Points.OrderBy(pt => pt.X).ToList();
+            return p;
+        }
+
+        for (int i = 0; i < sorted.Count - 1; i++)
+        {
+            var p0 = sorted[i];
+            var p1 = sorted[i + 1];
+
+            if (targetX >= p0.X && targetX <= p1.X)
+            {
+                // Control points in absolute coordinates
+                double p0x = p0.X, p0y = p0.Y;
+                double c0x = p0.X + p0.RightHandleX, c0y = p0.Y + p0.RightHandleY;
+                double c1x = p1.X + p1.LeftHandleX, c1y = p1.Y + p1.LeftHandleY;
+                double p1x = p1.X, p1y = p1.Y;
+
+                // Parameter t for targetX
+                double t = SolveTForX(targetX, p0x, c0x, c1x, p1x);
+
+                // De Casteljau subdivision (Level 1)
+                double q1x = (1 - t) * p0x + t * c0x;
+                double q1y = (1 - t) * p0y + t * c0y;
+
+                double hx = (1 - t) * c0x + t * c1x;
+                double hy = (1 - t) * c0y + t * c1y;
+
+                double r2x = (1 - t) * c1x + t * p1x;
+                double r2y = (1 - t) * c1y + t * p1y;
+
+                // De Casteljau subdivision (Level 2)
+                double q2x = (1 - t) * q1x + t * hx;
+                double q2y = (1 - t) * q1y + t * hy;
+
+                double r1x = (1 - t) * hx + t * r2x;
+                double r1y = (1 - t) * hy + t * r2y;
+
+                // De Casteljau subdivision (Level 3 - exact point on curve)
+                double px = (1 - t) * q2x + t * r1x;
+                double py = (1 - t) * q2y + t * r1y;
+
+                // Update original endpoints' handles as relative offsets
+                p0.RightHandleX = q1x - p0x;
+                p0.RightHandleY = q1y - p0y;
+
+                p1.LeftHandleX = r2x - p1x;
+                p1.LeftHandleY = r2y - p1y;
+
+                // Create new point with exact sub-segment relative handles
+                var insertedPoint = new CurvePoint
+                {
+                    X = px,
+                    Y = py,
+                    LeftHandleX = q2x - px,
+                    LeftHandleY = q2y - py,
+                    RightHandleX = r1x - px,
+                    RightHandleY = r1y - py
+                };
+
+                Points.Add(insertedPoint);
+                Points = Points.OrderBy(p => p.X).ToList();
+                return insertedPoint;
+            }
+        }
+
+        return null!;
+    }
+
     private static double SolveTForX(double x, double p0x, double p1x, double p2x, double p3x)
     {
         if (x <= p0x) return 0.0;
@@ -60,13 +150,11 @@ public class BezierCurve
 
         double t = (x - p0x) / Math.Max(1e-6, p3x - p0x);
 
-        // 1. Newton-Raphson iteration for fast convergence
         for (int i = 0; i < 8; i++)
         {
             double currentX = CubicBezier(p0x, p1x, p2x, p3x, t);
             double derivativeX = CubicBezierDerivative(p0x, p1x, p2x, p3x, t);
 
-            // Avoid division by zero when tangent derivative is near zero
             if (Math.Abs(derivativeX) < 1e-7) break;
 
             double error = currentX - x;
@@ -75,7 +163,6 @@ public class BezierCurve
             t -= error / derivativeX;
         }
 
-        // 2. Bisection fallback if Newton-Raphson strays or fails to converge
         double tMin = 0.0, tMax = 1.0;
         t = Math.Clamp(t, 0.0, 1.0);
 
@@ -114,9 +201,6 @@ public class BezierCurve
 
     // --- Polyline for rendering -------------------------------------------
 
-    /// <summary>
-    /// Return a list of (x, y) samples for drawing the curve on screen.
-    /// </summary>
     public List<(double X, double Y)> GetPolyline(int steps = 200)
     {
         var result = new List<(double, double)>(steps + 1);

@@ -84,21 +84,17 @@ public partial class CurveCanvasControl : UserControl
         return null;
     }
 
-    /// Returns the index of the segment the pos falls on, or -1.
-    /// Segment i is between Points[i] and Points[i+1] (sorted by X).
     private int HitSegment(SKPoint pos, BezierCurve curve)
     {
         var sorted = curve.Points.OrderBy(p => p.X).ToList();
         var poly = curve.GetPolyline(200);
 
-        // Find which pair of anchor points the hit polyline segment belongs to
         for (int i = 0; i < poly.Count - 1; i++)
         {
             var a = ToCanvas(poly[i].X, poly[i].Y);
             var b = ToCanvas(poly[i + 1].X, poly[i + 1].Y);
             if (DistPointToSegment(pos, a, b) < CurveHitDist)
             {
-                // Find which anchor segment this polyline segment belongs to
                 double midX = (poly[i].X + poly[i + 1].X) / 2.0;
                 for (int s = 0; s < sorted.Count - 1; s++)
                 {
@@ -134,10 +130,8 @@ public partial class CurveCanvasControl : UserControl
 
     // ── Colour helpers ────────────────────────────────────────────────────
 
-    /// Returns a brightened version of the curve colour for selected segments/points.
     private static SKColor BrightenColour(SKColor c)
     {
-        // Convert to HSL, boost lightness and saturation, convert back
         RgbToHsl(c.Red, c.Green, c.Blue, out float h, out float s, out float l);
         s = Math.Min(1f, s + 0.25f);
         l = Math.Min(1f, l + 0.30f);
@@ -251,7 +245,6 @@ public partial class CurveCanvasControl : UserControl
         var highlightColor = BrightenColour(baseColor);
         var sorted = curve.Points.OrderBy(p => p.X).ToList();
 
-        // Draw fill once for the whole curve
         var poly = curve.GetPolyline(300);
         using var fillPath = new SKPath();
         fillPath.MoveTo(ToCanvas(poly[0].X, poly[0].Y));
@@ -266,7 +259,6 @@ public partial class CurveCanvasControl : UserControl
         };
         canvas.DrawPath(fillPath, fillPaint);
 
-        // Glow for active curve
         if (isActive)
         {
             using var glowPath = new SKPath();
@@ -285,18 +277,15 @@ public partial class CurveCanvasControl : UserControl
             canvas.DrawPath(glowPath, glowPaint);
         }
 
-        // Draw each segment individually so selected ones can be highlighted
         for (int s = 0; s < sorted.Count - 1; s++)
         {
             var p0 = sorted[s];
             var p1 = sorted[s + 1];
 
-            // A segment is "selected" when both its endpoints are selected
             bool segSelected = isActive && p0.IsSelected && p1.IsSelected;
             SKColor strokeColor = segSelected ? highlightColor : baseColor;
             float strokeWidth = segSelected ? 3.5f : (isActive ? 2.5f : 1.5f);
 
-            // Sample just this segment
             int steps = 60;
             using var segPath = new SKPath();
             bool first = true;
@@ -348,7 +337,6 @@ public partial class CurveCanvasControl : UserControl
 
             if (pt.IsSelected)
             {
-                // Draw handles only for the single SelectedPoint to avoid clutter
                 if (pt == (DataContext as MainViewModel)?.SelectedPoint)
                 {
                     var lh = ToCanvas(pt.X + pt.LeftHandleX, pt.Y + pt.LeftHandleY);
@@ -384,7 +372,6 @@ public partial class CurveCanvasControl : UserControl
     {
         if (VM == null) return;
 
-        // Explicitly focus the canvas and clear focus from any active TextBox
         Focus();
         Keyboard.ClearFocus();
 
@@ -397,7 +384,6 @@ public partial class CurveCanvasControl : UserControl
         _draggingHandle = false;
         _hasDragged = false;
 
-        // Handle hit (only for the single focus point)
         if (VM.SelectedPoint != null && !ctrl)
         {
             var pt = VM.SelectedPoint;
@@ -417,19 +403,16 @@ public partial class CurveCanvasControl : UserControl
             }
         }
 
-        // Point hit
         var hitPt = HitPoint(pos, VM.ActiveCurve);
         if (hitPt != null)
         {
             if (ctrl)
             {
-                // Ctrl+click toggles selection of this point
                 hitPt.IsSelected = !hitPt.IsSelected;
                 VM.SelectedPoint = hitPt.IsSelected ? hitPt : null;
             }
             else
             {
-                // Plain click: clear all, select only this one
                 VM.ClearPointSelection();
                 hitPt.IsSelected = true;
                 VM.SelectedPoint = hitPt;
@@ -441,7 +424,6 @@ public partial class CurveCanvasControl : UserControl
             return;
         }
 
-        // Segment hit
         var segIdx = HitSegment(pos, VM.ActiveCurve);
         if (segIdx >= 0)
         {
@@ -451,14 +433,12 @@ public partial class CurveCanvasControl : UserControl
 
             if (ctrl)
             {
-                // Ctrl+click segment: toggle both endpoints
                 bool willSelect = !(p0.IsSelected && p1.IsSelected);
                 p0.IsSelected = willSelect;
                 p1.IsSelected = willSelect;
             }
             else
             {
-                // Plain click segment: clear all, select both endpoints
                 VM.ClearPointSelection();
                 p0.IsSelected = true;
                 p1.IsSelected = true;
@@ -468,7 +448,6 @@ public partial class CurveCanvasControl : UserControl
             return;
         }
 
-        // Click on comparison curve line → switch active curve
         foreach (var curve in VM.Document.Curves)
         {
             if (!curve.IsVisible || curve == VM.ActiveCurve) continue;
@@ -481,7 +460,6 @@ public partial class CurveCanvasControl : UserControl
             }
         }
 
-        // Click empty space (no ctrl) → deselect all
         if (!ctrl)
         {
             VM.ClearPointSelection();
@@ -531,7 +509,6 @@ public partial class CurveCanvasControl : UserControl
                 double newX = _draggingRightHandle ? _draggingPoint.RightHandleX : _draggingPoint.LeftHandleX;
                 double newY = _draggingRightHandle ? _draggingPoint.RightHandleY : _draggingPoint.LeftHandleY;
 
-                // Revert direct mutation first so command execution handles undo cleanly
                 if (_draggingRightHandle)
                 {
                     _draggingPoint.RightHandleX = _dragStartHandleX;
@@ -552,7 +529,6 @@ public partial class CurveCanvasControl : UserControl
                 double newX = _draggingPoint.X;
                 double newY = _draggingPoint.Y;
 
-                // Revert direct mutation first so command execution handles undo cleanly
                 _draggingPoint.X = _dragStartX;
                 _draggingPoint.Y = _dragStartY;
 
@@ -569,9 +545,10 @@ public partial class CurveCanvasControl : UserControl
 
     private void OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (VM == null) return;
+        if (VM == null || VM.ActiveCurve == null) return;
         var pos = ToSKPoint(e.GetPosition(SkiaElement));
 
+        // 1. Double clicking an existing point deletes it
         var hit = HitPoint(pos, VM.ActiveCurve);
         if (hit != null)
         {
@@ -581,10 +558,17 @@ public partial class CurveCanvasControl : UserControl
             return;
         }
 
-        var (nx, ny) = ToNorm(pos);
-        if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1)
+        // 2. Double clicking anywhere on the curve / canvas inserts a point seamlessly
+        var (nx, _) = ToNorm(pos);
+        if (nx >= 0 && nx <= 1)
         {
-            VM.AddPoint(nx, ny);
+            var inserted = VM.ActiveCurve.InsertPointSeamlessly(nx);
+            if (inserted != null)
+            {
+                VM.ClearPointSelection();
+                inserted.IsSelected = true;
+                VM.SelectedPoint = inserted;
+            }
             Redraw();
         }
     }
