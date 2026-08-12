@@ -1,3 +1,9 @@
 <Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="../RTPCCurveEvaluatorNative/RTPCCurveEvaluatorNative.vcxproj" Id="f2328b91-4438-4e6e-92b2-c95366d7e3e3" />
   <Project Path="RTPCCurveEditor.csproj" />
 </Solution>

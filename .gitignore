@@ -1,6 +1,10 @@
 # Build outputs
 bin/
 obj/
+x64/
+x86/
+[Dd]ebug/
+[Rr]elease/
 
 # Visual Studio
 .vs/
@@ -24,3 +28,11 @@ packages/
 # OS
 .DS_Store
 Thumbs.db
+
+# Compiled native binaries and artifacts
+*.dll
+*.lib
+*.exp
+*.pdb
+*.iobj
+*.ipdb
