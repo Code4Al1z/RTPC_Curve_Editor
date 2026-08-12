@@ -4,6 +4,8 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="RTPCCurveEditor.csproj" />
+  <Project Path="RTPCCurveEditor.csproj">
+    <Platform Solution="Release|x64" Project="x64" />
+  </Project>
   <Project Path="RTPCCurveEvaluatorNative/RTPCCurveEvaluatorNative.vcxproj" Id="25f5d22e-49bb-4b8b-b970-5f6cb69834e9" />
 </Solution>

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
@@ -10,6 +10,7 @@
 		<RootNamespace>RTPCCurveEditor</RootNamespace>
 		<LangVersion>14</LangVersion>
 		<ApplicationIcon>Assets\app_icon.ico</ApplicationIcon>
+		<Platforms>AnyCPU;x64</Platforms>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -27,10 +28,7 @@
 	</ItemGroup>
 
 	<Target Name="CopyNativeDll" AfterTargets="Build">
-		<Copy SourceFiles="$(SolutionDir)x64\$(Configuration)\RTPCCurveEvaluatorNative.dll"
-			  DestinationFolder="$(TargetDir)"
-			  SkipUnchangedFiles="true"
-			  Condition="Exists('$(SolutionDir)x64\$(Configuration)\RTPCCurveEvaluatorNative.dll')" />
+		<Copy SourceFiles="$(SolutionDir)x64\$(Configuration)\RTPCCurveEvaluatorNative.dll" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" Condition="Exists('$(SolutionDir)x64\$(Configuration)\RTPCCurveEvaluatorNative.dll')" />
 	</Target>
 	
 </Project>
