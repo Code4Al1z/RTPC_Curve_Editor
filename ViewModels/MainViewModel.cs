@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using RTPCCurveEditor.Commands;
 using RTPCCurveEditor.Models;
+using RTPCCurveEditor.Native;
 using RTPCCurveEditor.Presets;
 using RTPCCurveEditor.Services;
 using System.IO;
@@ -85,6 +86,55 @@ public partial class MainViewModel : ObservableObject
     }
 
     private void OnDocumentPropertyChanged(object? sender, PropertyChangedEventArgs e) => RaiseCurveChanged();
+
+    // ── Native C++ Evaluation ───────────────────────────────────────────────
+
+    [ObservableProperty] private double _nativeTestInput = 0.5;
+
+    public double NativeTestOutput
+    {
+        get
+        {
+            if (ActiveCurve?.Points == null) return 0.0;
+            var points = ActiveCurve.Points.OrderBy(p => p.X).ToList();
+            if (points.Count < 2) return 0.0;
+
+            double x = Math.Clamp(NativeTestInput, points.First().X, points.Last().X);
+
+            for (int i = 0; i < points.Count - 1; i++)
+            {
+                var p0 = points[i];
+                var p1 = points[i + 1];
+
+                if (x >= p0.X && x <= p1.X)
+                {
+                    return NativeEvaluator.EvaluateCubicBezierYAtX(
+                        p0.X, p0.Y,
+                        p0.X + p0.RightHandleX, p0.Y + p0.RightHandleY,
+                        p1.X + p1.LeftHandleX, p1.Y + p1.LeftHandleY,
+                        p1.X, p1.Y,
+                        x);
+                }
+            }
+
+            return 0.0;
+        }
+    }
+
+    public double NativeTestOutputReal =>
+        Document.OutputMin + NativeTestOutput * (Document.OutputMax - Document.OutputMin);
+
+    public double NativeTestInputReal =>
+        Document.InputMin + NativeTestInput * (Document.InputMax - Document.InputMin);
+
+    partial void OnNativeTestInputChanged(double value) => NotifyNativeTestProperties();
+
+    private void NotifyNativeTestProperties()
+    {
+        OnPropertyChanged(nameof(NativeTestOutput));
+        OnPropertyChanged(nameof(NativeTestOutputReal));
+        OnPropertyChanged(nameof(NativeTestInputReal));
+    }
 
     // ── Undo/Redo ─────────────────────────────────────────────────────────
 
@@ -474,7 +524,11 @@ public partial class MainViewModel : ObservableObject
     // ── Helpers ───────────────────────────────────────────────────────────
 
     public event Action? CurveChanged;
-    private void RaiseCurveChanged() => CurveChanged?.Invoke();
+    private void RaiseCurveChanged()
+    {
+        NotifyNativeTestProperties();
+        CurveChanged?.Invoke();
+    }
 
     private void Status(string msg) => StatusMessage = msg;
     private void Error(string msg)

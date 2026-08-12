@@ -92,6 +92,45 @@
 
         <Separator/>
 
+          <Separator/>
+
+        <!-- Section: Native C++ Evaluation (P/Invoke) -->
+        <TextBlock Text="NATIVE C++ EVALUATION (P/INVOKE)" FontSize="10" FontWeight="SemiBold"
+                   Foreground="#7F77DD" Margin="0,10,0,8"/>
+
+        <DockPanel Margin="0,0,0,4">
+          <Label Content="Input value" Padding="0" VerticalAlignment="Center"/>
+          <TextBlock Text="{Binding NativeTestInputReal, StringFormat={}{0:F2}}"
+                     Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold"
+                     HorizontalAlignment="Right" VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <Slider Minimum="0.0" Maximum="1.0"
+                Value="{Binding NativeTestInput, Mode=TwoWay}"
+                TickFrequency="0.01" IsSnapToTickEnabled="False"
+                Margin="0,4,0,8"/>
+
+        <Border Background="#1A1A24" CornerRadius="4" Padding="8" Margin="0,0,0,12">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+              <TextBlock Text="Normalized Y" FontSize="10" Foreground="#8A88A0"/>
+              <TextBlock Text="{Binding NativeTestOutput, StringFormat={}{0:F3}}"
+                         FontSize="13" FontWeight="Bold" Foreground="#10B981"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1">
+              <TextBlock Text="Real Output" FontSize="10" Foreground="#8A88A0"/>
+              <TextBlock Text="{Binding NativeTestOutputReal, StringFormat={}{0:F1}}"
+                         FontSize="13" FontWeight="Bold" Foreground="#3B82F6"/>
+            </StackPanel>
+          </Grid>
+        </Border>
+          
 		  <!-- Section: Comparison curves -->
 		  <TextBlock Text="COMPARISON CURVES" FontSize="10" FontWeight="SemiBold"
 					 Foreground="#4A4860" Margin="0,10,0,8"/>

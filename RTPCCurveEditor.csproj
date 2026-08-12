@@ -26,4 +26,11 @@
 	  <ProjectReference Include="RTPCCurveEvaluatorNative\RTPCCurveEvaluatorNative.vcxproj" />
 	</ItemGroup>
 
+	<Target Name="CopyNativeDll" AfterTargets="Build">
+		<Copy SourceFiles="$(SolutionDir)x64\$(Configuration)\RTPCCurveEvaluatorNative.dll"
+			  DestinationFolder="$(TargetDir)"
+			  SkipUnchangedFiles="true"
+			  Condition="Exists('$(SolutionDir)x64\$(Configuration)\RTPCCurveEvaluatorNative.dll')" />
+	</Target>
+	
 </Project>
