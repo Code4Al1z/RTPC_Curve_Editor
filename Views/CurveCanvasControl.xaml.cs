@@ -24,6 +24,7 @@ public partial class CurveCanvasControl : UserControl
     private CurvePoint? _draggingPoint;
     private bool _draggingHandle;
     private bool _draggingRightHandle;
+    private bool _isPanning;
     private bool _hasDragged;
     private SKPoint _mouseDownPos;
     private SKPoint _lastMouseCanvas;
@@ -36,10 +37,8 @@ public partial class CurveCanvasControl : UserControl
     {
         InitializeComponent();
 
-        // Force render on startup
         Loaded += (s, e) => SkiaElement?.InvalidateVisual();
 
-        // Force render when ViewModel/DataContext attaches or updates
         DataContextChanged += (s, e) =>
         {
             if (DataContext is MainViewModel vm)
@@ -52,29 +51,37 @@ public partial class CurveCanvasControl : UserControl
         MouseDoubleClick += OnMouseDoubleClick;
     }
 
-    public void Redraw() => SkiaElement.InvalidateVisual();
+    public void Redraw() => SkiaElement?.InvalidateVisual();
 
-    // ── Coordinate helpers ────────────────────────────────────────────────
+    // ── Coordinate Transformation Engine ──────────────────────────────────
 
     private float CanvasWidth => (float)SkiaElement.ActualWidth;
     private float CanvasHeight => (float)SkiaElement.ActualHeight;
-    private float PlotW => (CanvasWidth - CanvasPadding * 2) * _zoom;
-    private float PlotH => (CanvasHeight - CanvasPadding * 2) * _zoom;
+    private float PlotW => CanvasWidth - CanvasPadding * 2f;
+    private float PlotH => CanvasHeight - CanvasPadding * 2f;
 
+    private SKRect PlotBounds => SKRect.Create(CanvasPadding, CanvasPadding, PlotW, PlotH);
+
+    /// <summary>
+    /// Maps normalized curve space (0..1, 0..1) to screen pixel coordinates.
+    /// </summary>
     private SKPoint ToCanvas(double nx, double ny) => new(
-        CanvasPadding + (float)nx * PlotW + _pan.X,
-        CanvasHeight - CanvasPadding - (float)ny * PlotH + _pan.Y
+        CanvasPadding + (float)nx * PlotW * _zoom + _pan.X,
+        CanvasHeight - CanvasPadding - (float)ny * PlotH * _zoom + _pan.Y
     );
 
+    /// <summary>
+    /// Maps screen pixel coordinates to normalized curve space (0..1, 0..1).
+    /// </summary>
     private (double nx, double ny) ToNorm(SKPoint p) => (
-        (p.X - CanvasPadding - _pan.X) / PlotW,
-        1.0 - (p.Y - (CanvasHeight - CanvasPadding - PlotH) - _pan.Y) / PlotH
+        (p.X - CanvasPadding - _pan.X) / (PlotW * _zoom),
+        (CanvasHeight - CanvasPadding + _pan.Y - p.Y) / (PlotH * _zoom)
     );
 
     private (double dnx, double dny) DeltaToNorm(SKPoint delta) =>
-        (delta.X / PlotW, -delta.Y / PlotH);
+        (delta.X / (PlotW * _zoom), -delta.Y / (PlotH * _zoom));
 
-    // ── Hit testing ───────────────────────────────────────────────────────
+    // ── Hit Testing ───────────────────────────────────────────────────────
 
     private CurvePoint? HitPoint(SKPoint pos, BezierCurve curve)
     {
@@ -128,98 +135,44 @@ public partial class CurveCanvasControl : UserControl
         return SKPoint.Distance(p, new SKPoint(a.X + t * ab.X, a.Y + t * ab.Y));
     }
 
-    // ── Colour helpers ────────────────────────────────────────────────────
-
-    private static SKColor BrightenColour(SKColor c)
-    {
-        RgbToHsl(c.Red, c.Green, c.Blue, out float h, out float s, out float l);
-        s = Math.Min(1f, s + 0.25f);
-        l = Math.Min(1f, l + 0.30f);
-        HslToRgb(h, s, l, out float r, out float g, out float b);
-        return new SKColor((byte)(r * 255), (byte)(g * 255), (byte)(b * 255), c.Alpha);
-    }
-
-    private static void RgbToHsl(byte r, byte g, byte b,
-        out float h, out float s, out float l)
-    {
-        float rf = r / 255f, gf = g / 255f, bf = b / 255f;
-        float max = Math.Max(rf, Math.Max(gf, bf));
-        float min = Math.Min(rf, Math.Min(gf, bf));
-        l = (max + min) / 2f;
-        if (max == min) { h = s = 0; return; }
-        float d = max - min;
-        s = l > 0.5f ? d / (2f - max - min) : d / (max + min);
-        if (max == rf) h = (gf - bf) / d + (gf < bf ? 6 : 0);
-        else if (max == gf) h = (bf - rf) / d + 2;
-        else h = (rf - gf) / d + 4;
-        h /= 6f;
-    }
-
-    private static void HslToRgb(float h, float s, float l,
-        out float r, out float g, out float b)
-    {
-        if (s == 0) { r = g = b = l; return; }
-        float q = l < 0.5f ? l * (1 + s) : l + s - l * s;
-        float p = 2 * l - q;
-        r = HueToRgb(p, q, h + 1f / 3);
-        g = HueToRgb(p, q, h);
-        b = HueToRgb(p, q, h - 1f / 3);
-    }
-
-    private static float HueToRgb(float p, float q, float t)
-    {
-        if (t < 0) t += 1; if (t > 1) t -= 1;
-        if (t < 1f / 6) return p + (q - p) * 6 * t;
-        if (t < 1f / 2) return q;
-        if (t < 2f / 3) return p + (q - p) * (2f / 3 - t) * 6;
-        return p;
-    }
-
-    // ── Paint ─────────────────────────────────────────────────────────────
+    // ── Paint Engine ──────────────────────────────────────────────────────
 
     private void OnPaintSurface(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(new SKColor(23, 23, 31));
-        if (VM == null) return;
+        if (VM == null || PlotW <= 0 || PlotH <= 0) return;
 
-        DrawGrid(canvas);
-        DrawAxes(canvas);
+        // Draw grid lines and axes first
+        DrawGridAndAxes(canvas);
+
+        // Clip curve rendering exclusively to the inner plot viewport
+        canvas.Save();
+        canvas.ClipRect(PlotBounds);
 
         foreach (var curve in VM.Document.Curves.Where(c => c != VM.ActiveCurve && c.IsVisible))
             DrawCurve(canvas, curve, alpha: 60, isActive: false);
 
         DrawCurve(canvas, VM.ActiveCurve, alpha: 255, isActive: true);
         DrawPoints(canvas, VM.ActiveCurve);
+
+        canvas.Restore();
     }
 
-    private void DrawGrid(SKCanvas canvas)
+    private void DrawGridAndAxes(SKCanvas canvas)
     {
-        using var paint = new SKPaint
+        using var gridPaint = new SKPaint
         {
             Color = new SKColor(255, 255, 255, 18),
-            StrokeWidth = 1,
+            StrokeWidth = 1f,
             IsAntialias = false
         };
-        for (int i = 0; i <= 8; i++)
-        {
-            double t = (double)i / 8;
-            var h0 = ToCanvas(t, 0); var h1 = ToCanvas(t, 1);
-            var v0 = ToCanvas(0, t); var v1 = ToCanvas(1, t);
-            canvas.DrawLine(h0.X, h0.Y, h1.X, h1.Y, paint);
-            canvas.DrawLine(v0.X, v0.Y, v1.X, v1.Y, paint);
-        }
-    }
-
-    private void DrawAxes(SKCanvas canvas)
-    {
-        if (VM == null) return;
-
-        using var axisPaint = new SKPaint
+        using var framePaint = new SKPaint
         {
             Color = new SKColor(255, 255, 255, 55),
             StrokeWidth = 1.5f,
-            IsAntialias = true
+            IsAntialias = true,
+            IsStroke = true
         };
         using var zeroLinePaint = new SKPaint
         {
@@ -230,54 +183,82 @@ public partial class CurveCanvasControl : UserControl
         using var labelFont = new SKFont(SKTypeface.Default, 11);
         using var labelPaint = new SKPaint { Color = new SKColor(138, 136, 160), IsAntialias = true };
 
-        // Fixed plot boundary frame
-        canvas.DrawLine(ToCanvas(0, 0), ToCanvas(1, 0), axisPaint);
-        canvas.DrawLine(ToCanvas(0, 0), ToCanvas(0, 1), axisPaint);
+        // Determine visible bounds in normalized curve space
+        var (visNxMin, visNyMax) = ToNorm(new SKPoint(CanvasPadding, CanvasPadding));
+        var (visNxMax, visNyMin) = ToNorm(new SKPoint(CanvasWidth - CanvasPadding, CanvasHeight - CanvasPadding));
 
-        double inMin = VM.Document.InputMin, inMax = VM.Document.InputMax;
+        double inMin = VM!.Document.InputMin, inMax = VM.Document.InputMax;
         double outMin = VM.Document.OutputMin, outMax = VM.Document.OutputMax;
 
-        // Draw Y = 0 origin line if Output range spans negative to positive
-        if (outMin < 0 && outMax > 0)
+        double visXMin = inMin + visNxMin * (inMax - inMin);
+        double visXMax = inMin + visNxMax * (inMax - inMin);
+        double visYMin = outMin + visNyMin * (outMax - outMin);
+        double visYMax = outMin + visNyMax * (outMax - outMin);
+
+        // Calculate dynamic grid tick steps (nice numbers algorithm)
+        double xStep = GetNiceInterval(visXMax - visXMin, targetTicks: 8);
+        double yStep = GetNiceInterval(visYMax - visYMin, targetTicks: 8);
+
+        // 1. Draw Vertical Grid Lines & X Labels
+        double firstX = Math.Floor(visXMin / xStep) * xStep;
+        for (double x = firstX; x <= visXMax; x += xStep)
         {
-            double zeroYNorm = (0.0 - outMin) / (outMax - outMin);
-            var p0 = ToCanvas(0, zeroYNorm);
-            var p1 = ToCanvas(1, zeroYNorm);
-            canvas.DrawLine(p0, p1, zeroLinePaint);
+            double normX = (x - inMin) / (inMax - inMin);
+            var screenPos = ToCanvas(normX, 0);
+
+            if (screenPos.X >= CanvasPadding && screenPos.X <= CanvasWidth - CanvasPadding)
+            {
+                canvas.DrawLine(screenPos.X, CanvasPadding, screenPos.X, CanvasHeight - CanvasPadding, gridPaint);
+                canvas.DrawText(x.ToString("G4"), screenPos.X - 8f, CanvasHeight - CanvasPadding + 18f, SKTextAlign.Left, labelFont, labelPaint);
+            }
         }
 
-        // Draw X = 0 origin line if Input range spans negative to positive
+        // 2. Draw Horizontal Grid Lines & Y Labels
+        double firstY = Math.Floor(visYMin / yStep) * yStep;
+        for (double y = firstY; y <= visYMax; y += yStep)
+        {
+            double normY = (y - outMin) / (outMax - outMin);
+            var screenPos = ToCanvas(0, normY);
+
+            if (screenPos.Y >= CanvasPadding && screenPos.Y <= CanvasHeight - CanvasPadding)
+            {
+                canvas.DrawLine(CanvasPadding, screenPos.Y, CanvasWidth - CanvasPadding, screenPos.Y, gridPaint);
+                canvas.DrawText(y.ToString("G4"), 4f, screenPos.Y + 4f, SKTextAlign.Left, labelFont, labelPaint);
+            }
+        }
+
+        // 3. Highlight 0-Origin Lines
         if (inMin < 0 && inMax > 0)
         {
-            double zeroXNorm = (0.0 - inMin) / (inMax - inMin);
-            var p0 = ToCanvas(zeroXNorm, 0);
-            var p1 = ToCanvas(zeroXNorm, 1);
-            canvas.DrawLine(p0, p1, zeroLinePaint);
+            double norm0X = (0.0 - inMin) / (inMax - inMin);
+            var p0 = ToCanvas(norm0X, 0);
+            if (p0.X >= CanvasPadding && p0.X <= CanvasWidth - CanvasPadding)
+                canvas.DrawLine(p0.X, CanvasPadding, p0.X, CanvasHeight - CanvasPadding, zeroLinePaint);
         }
-
-        // Calculate actual normalized bounds visible inside the canvas plot region
-        var (visNormMinX, visNormMaxY) = ToNorm(new SKPoint(CanvasPadding, CanvasPadding));
-        var (visNormMaxX, visNormMinY) = ToNorm(new SKPoint(CanvasWidth - CanvasPadding, CanvasHeight - CanvasPadding));
-
-        // Convert visible normalized bounds to actual parameter units
-        double visInMin = inMin + visNormMinX * (inMax - inMin);
-        double visInMax = inMin + visNormMaxX * (inMax - inMin);
-        double visOutMin = outMin + visNormMinY * (outMax - outMin);
-        double visOutMax = outMin + visNormMaxY * (outMax - outMin);
-
-        // Draw 5 dynamic ticks across the visible view
-        for (int i = 0; i <= 5; i++)
+        if (outMin < 0 && outMax > 0)
         {
-            double t = (double)i / 5;
-            double xVal = visInMin + t * (visInMax - visInMin);
-            double yVal = visOutMin + t * (visOutMax - visOutMin);
-
-            float screenX = CanvasPadding + (float)t * (CanvasWidth - CanvasPadding * 2f);
-            float screenY = CanvasHeight - CanvasPadding - (float)t * (CanvasHeight - CanvasPadding * 2f);
-
-            canvas.DrawText(xVal.ToString("F1"), screenX - 10f, CanvasHeight - CanvasPadding + 18f, SKTextAlign.Left, labelFont, labelPaint);
-            canvas.DrawText(yVal.ToString("F1"), 4f, screenY + 4f, SKTextAlign.Left, labelFont, labelPaint);
+            double norm0Y = (0.0 - outMin) / (outMax - outMin);
+            var p0 = ToCanvas(0, norm0Y);
+            if (p0.Y >= CanvasPadding && p0.Y <= CanvasHeight - CanvasPadding)
+                canvas.DrawLine(CanvasPadding, p0.Y, CanvasWidth - CanvasPadding, p0.Y, zeroLinePaint);
         }
+
+        // Outer Frame
+        canvas.DrawRect(PlotBounds, framePaint);
+    }
+
+    private static double GetNiceInterval(double range, double targetTicks)
+    {
+        double rawInterval = range / targetTicks;
+        if (rawInterval <= 0) return 1.0;
+
+        double magnitude = Math.Pow(10, Math.Floor(Math.Log10(rawInterval)));
+        double residual = rawInterval / magnitude;
+
+        if (residual < 1.5) return 1.0 * magnitude;
+        if (residual < 3.0) return 2.0 * magnitude;
+        if (residual < 7.0) return 5.0 * magnitude;
+        return 10.0 * magnitude;
     }
 
     private void DrawCurve(SKCanvas canvas, BezierCurve curve, byte alpha, bool isActive)
@@ -288,10 +269,10 @@ public partial class CurveCanvasControl : UserControl
         var highlightColor = BrightenColour(baseColor);
         var sorted = curve.Points.OrderBy(p => p.X).ToList();
 
-        // Fill and glow using smooth parametric polyline
         var poly = curve.GetPolyline(100);
         if (poly.Count < 2) return;
 
+        // Fill under curve
         using var fillPath = new SKPath();
         fillPath.MoveTo(ToCanvas(poly[0].X, poly[0].Y));
         foreach (var (x, y) in poly.Skip(1)) fillPath.LineTo(ToCanvas(x, y));
@@ -306,6 +287,7 @@ public partial class CurveCanvasControl : UserControl
         };
         canvas.DrawPath(fillPath, fillPaint);
 
+        // Curve glow effect
         if (isActive)
         {
             using var glowPath = new SKPath();
@@ -324,7 +306,7 @@ public partial class CurveCanvasControl : UserControl
             canvas.DrawPath(glowPath, glowPaint);
         }
 
-        // Draw individual segments using parametric t-sampling
+        // Draw individual curve segments
         for (int s = 0; s < sorted.Count - 1; s++)
         {
             var p0 = sorted[s];
@@ -419,7 +401,7 @@ public partial class CurveCanvasControl : UserControl
         }
     }
 
-    // ── Mouse: Left button ────────────────────────────────────────────────
+    // ── Mouse Interaction & Navigation ────────────────────────────────────
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -431,11 +413,21 @@ public partial class CurveCanvasControl : UserControl
         SkiaElement.CaptureMouse();
         var pos = ToSKPoint(e.GetPosition(SkiaElement));
         bool ctrl = Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl);
+
         _mouseDownPos = pos;
         _lastMouseCanvas = pos;
         _draggingPoint = null;
         _draggingHandle = false;
         _hasDragged = false;
+
+        // Middle Mouse Drag -> Pan Timeline
+        if (e.MiddleButton == MouseButtonState.Pressed)
+        {
+            _isPanning = true;
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed) return;
 
         if (VM.SelectedPoint != null && !ctrl)
         {
@@ -527,6 +519,15 @@ public partial class CurveCanvasControl : UserControl
         var delta = new SKPoint(pos.X - _lastMouseCanvas.X, pos.Y - _lastMouseCanvas.Y);
         _lastMouseCanvas = pos;
 
+        if (_isPanning)
+        {
+            _pan.X += delta.X;
+            _pan.Y += delta.Y;
+            ClampPan();
+            Redraw();
+            return;
+        }
+
         if (e.LeftButton != MouseButtonState.Pressed) return;
         if (!_hasDragged && SKPoint.Distance(pos, _mouseDownPos) > 3f) _hasDragged = true;
         if (!_hasDragged) return;
@@ -554,6 +555,12 @@ public partial class CurveCanvasControl : UserControl
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
     {
         SkiaElement.ReleaseMouseCapture();
+
+        if (_isPanning)
+        {
+            _isPanning = false;
+            return;
+        }
 
         if (_hasDragged && _draggingPoint != null && VM != null)
         {
@@ -594,14 +601,56 @@ public partial class CurveCanvasControl : UserControl
         _hasDragged = false;
     }
 
-    // ── Double-click: add / remove ────────────────────────────────────────
+    // ── Mouse Wheel Timeline Zoom ──────────────────────────────────────────
+
+    private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var mousePos = ToSKPoint(e.GetPosition(SkiaElement));
+
+        // Get world-space normalized point under mouse before zoom
+        var (nx, ny) = ToNorm(mousePos);
+
+        float zoomFactor = e.Delta > 0 ? 1.2f : 1.0f / 1.2f;
+        float newZoom = Math.Clamp(_zoom * zoomFactor, 1.0f, 32.0f);
+
+        if (Math.Abs(newZoom - _zoom) < 0.001f) return;
+
+        _zoom = newZoom;
+
+        // Recalculate pan so (nx, ny) stays anchored under mouse cursor
+        _pan.X = mousePos.X - CanvasPadding - (float)nx * PlotW * _zoom;
+        _pan.Y = mousePos.Y - (CanvasHeight - CanvasPadding) + (float)ny * PlotH * _zoom;
+
+        ClampPan();
+        Redraw();
+    }
+
+    private void ClampPan()
+    {
+        if (_zoom <= 1.001f)
+        {
+            _zoom = 1.0f;
+            _pan = SKPoint.Empty;
+            return;
+        }
+
+        // Keep view within valid timeline boundaries
+        float minPanX = PlotW * (1.0f - _zoom);
+        float maxPanX = 0f;
+        float minPanY = 0f;
+        float maxPanY = PlotH * (_zoom - 1.0f);
+
+        _pan.X = Math.Clamp(_pan.X, minPanX, maxPanX);
+        _pan.Y = Math.Clamp(_pan.Y, minPanY, maxPanY);
+    }
+
+    // ── Double-Click Point Creation/Deletion ──────────────────────────────
 
     private void OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (VM == null || VM.ActiveCurve == null) return;
         var pos = ToSKPoint(e.GetPosition(SkiaElement));
 
-        // 1. Double clicking an existing point deletes it
         var hit = HitPoint(pos, VM.ActiveCurve);
         if (hit != null)
         {
@@ -611,7 +660,6 @@ public partial class CurveCanvasControl : UserControl
             return;
         }
 
-        // 2. Double clicking anywhere on the curve / canvas inserts a point seamlessly
         var (nx, _) = ToNorm(pos);
         if (nx >= 0 && nx <= 1)
         {
@@ -626,15 +674,14 @@ public partial class CurveCanvasControl : UserControl
         }
     }
 
-    // ── Keyboard: Ctrl+A ──────────────────────────────────────────────────
+    // ── Keyboard Shortcuts ────────────────────────────────────────────────
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
         if (VM == null) return;
 
-        if (e.Key == Key.A &&
-            (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)))
+        if (e.Key == Key.A && (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)))
         {
             foreach (var pt in VM.ActiveCurve.Points)
                 pt.IsSelected = true;
@@ -644,48 +691,53 @@ public partial class CurveCanvasControl : UserControl
         }
     }
 
-    // ── Right-click ───────────────────────────────────────────────────────
-
     private void OnRightMouseDown(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
     }
 
-    // ── Wheel: zoom ───────────────────────────────────────────────────────
+    private static SKPoint ToSKPoint(Point p) => new((float)p.X, (float)p.Y);
 
-    private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+    private static SKColor BrightenColour(SKColor c)
     {
-        var mousePos = ToSKPoint(e.GetPosition(SkiaElement));
-
-        // Get normalized curve point directly under mouse cursor before zoom
-        var (nx, ny) = ToNorm(mousePos);
-
-        // Calculate new zoom factor
-        float zoomFactor = e.Delta > 0 ? 1.15f : 1.0f / 1.15f;
-        float newZoom = Math.Clamp(_zoom * zoomFactor, 1.0f, 8.0f);
-
-        if (Math.Abs(newZoom - _zoom) < 0.001f) return;
-
-        _zoom = newZoom;
-
-        // Recalculate pan so the point under the cursor stays at the same screen position
-        float newPlotW = (CanvasWidth - CanvasPadding * 2) * _zoom;
-        float newPlotH = (CanvasHeight - CanvasPadding * 2) * _zoom;
-
-        _pan.X = mousePos.X - CanvasPadding - (float)nx * newPlotW;
-        _pan.Y = mousePos.Y - (CanvasHeight - CanvasPadding) + (float)ny * newPlotH;
-
-        // Reset pan if zoomed all the way out to keep bottom-left origin locked
-        if (_zoom <= 1.001f)
-        {
-            _zoom = 1.0f;
-            _pan = SKPoint.Empty;
-        }
-
-        Redraw();
+        RgbToHsl(c.Red, c.Green, c.Blue, out float h, out float s, out float l);
+        s = Math.Min(1f, s + 0.25f);
+        l = Math.Min(1f, l + 0.30f);
+        HslToRgb(h, s, l, out float r, out float g, out float b);
+        return new SKColor((byte)(r * 255), (byte)(g * 255), (byte)(b * 255), c.Alpha);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────
+    private static void RgbToHsl(byte r, byte g, byte b, out float h, out float s, out float l)
+    {
+        float rf = r / 255f, gf = g / 255f, bf = b / 255f;
+        float max = Math.Max(rf, Math.Max(gf, bf));
+        float min = Math.Min(rf, Math.Min(gf, bf));
+        l = (max + min) / 2f;
+        if (max == min) { h = s = 0; return; }
+        float d = max - min;
+        s = l > 0.5f ? d / (2f - max - min) : d / (max + min);
+        if (max == rf) h = (gf - bf) / d + (gf < bf ? 6 : 0);
+        else if (max == gf) h = (bf - rf) / d + 2;
+        else h = (rf - gf) / d + 4;
+        h /= 6f;
+    }
 
-    private static SKPoint ToSKPoint(Point p) => new((float)p.X, (float)p.Y);
+    private static void HslToRgb(float h, float s, float l, out float r, out float g, out float b)
+    {
+        if (s == 0) { r = g = b = l; return; }
+        float q = l < 0.5f ? l * (1 + s) : l + s - l * s;
+        float p = 2 * l - q;
+        r = HueToRgb(p, q, h + 1f / 3);
+        g = HueToRgb(p, q, h);
+        b = HueToRgb(p, q, h - 1f / 3);
+    }
+
+    private static float HueToRgb(float p, float q, float t)
+    {
+        if (t < 0) t += 1; if (t > 1) t -= 1;
+        if (t < 1f / 6) return p + (q - p) * 6 * t;
+        if (t < 1f / 2) return q;
+        if (t < 2f / 3) return p + (q - p) * (2f / 3 - t) * 6;
+        return p;
+    }
 }

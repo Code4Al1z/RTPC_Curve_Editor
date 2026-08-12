@@ -3,17 +3,25 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace RTPCCurveEditor.Models;
 
 /// <summary>
-/// The root document model saved as a .rtpce file.
-/// Inherits ObservableObject so the view model can observe property changes live.
+/// Root document model matching Wwise's normalized curve architecture.
+/// X-axis (Game Parameter) is non-negative (>= 0), while Y-axis (Audio Value) 
+/// can span negative ranges (e.g. -96 dB to 0 dB).
 /// </summary>
 public partial class CurveDocument : ObservableObject
 {
     [ObservableProperty] private string _title = "Untitled Project";
     [ObservableProperty] private string _wwiseRtpcName = "";
-    [ObservableProperty] private double _inputMin = 0.0;
+
+    private double _inputMin = 0.0;
+    public double InputMin
+    {
+        get => _inputMin;
+        set => SetProperty(ref _inputMin, Math.Max(0.0, value)); // Clamp X-axis to >= 0
+    }
+
     [ObservableProperty] private double _inputMax = 100.0;
-    [ObservableProperty] private double _outputMin = 0.0;
-    [ObservableProperty] private double _outputMax = 100.0;
+    [ObservableProperty] private double _outputMin = -96.0; // Y-axis can be negative (e.g., -96 dB)
+    [ObservableProperty] private double _outputMax = 0.0;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime ModifiedAt { get; set; } = DateTime.UtcNow;

@@ -1,42 +1,61 @@
-using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace RTPCCurveEditor.Models;
 
-/// <summary>
-/// A single point on the RTPC curve, with Bézier control handles.
-/// X and Y are normalised 0..1 — the export layer maps them to real Wwise ranges.
-/// </summary>
 public partial class CurvePoint : ObservableObject
 {
     [ObservableProperty] private double _x;
     [ObservableProperty] private double _y;
-
-    // Left and right tangent handles, expressed as offsets from the anchor point.
-    public double LeftHandleX { get; set; } = -0.05;
-    public double LeftHandleY { get; set; } = 0.0;
-    public double RightHandleX { get; set; } = 0.05;
-    public double RightHandleY { get; set; } = 0.0;
-
-    [JsonIgnore]
+    [ObservableProperty] private double _leftHandleX = -0.05;
+    [ObservableProperty] private double _leftHandleY = 0.0;
+    [ObservableProperty] private double _rightHandleX = 0.05;
+    [ObservableProperty] private double _rightHandleY = 0.0;
     [ObservableProperty] private bool _isSelected;
 
     public CurvePoint() { }
 
     public CurvePoint(double x, double y)
     {
-        X = x;
-        Y = y;
+        _x = x;
+        _y = y;
     }
 
-    public CurvePoint Clone() => new()
+    /// <summary>
+    /// Converts normalized coordinates (0..1) into actual domain units (e.g., dB or meters).
+    /// </summary>
+    public (double realX, double realY) GetRealWorldCoords(CurveDocument doc)
     {
-        X = X,
-        Y = Y,
-        LeftHandleX = LeftHandleX,
-        LeftHandleY = LeftHandleY,
-        RightHandleX = RightHandleX,
-        RightHandleY = RightHandleY,
-        IsSelected = IsSelected
-    };
+        double realX = doc.InputMin + X * (doc.InputMax - doc.InputMin);
+        double realY = doc.OutputMin + Y * (doc.OutputMax - doc.OutputMin);
+        return (realX, realY);
+    }
+
+    /// <summary>
+    /// Sets normalized coordinates (0..1) from user-entered domain units.
+    /// </summary>
+    public void SetFromRealWorldCoords(double realX, double realY, CurveDocument doc)
+    {
+        double inRange = doc.InputMax - doc.InputMin;
+        double outRange = doc.OutputMax - doc.OutputMin;
+
+        if (Math.Abs(inRange) > 1e-9)
+            X = Math.Clamp((realX - doc.InputMin) / inRange, 0.0, 1.0);
+
+        if (Math.Abs(outRange) > 1e-9)
+            Y = Math.Clamp((realY - doc.OutputMin) / outRange, 0.0, 1.0);
+    }
+
+    public CurvePoint Clone()
+    {
+        return new CurvePoint
+        {
+            X = X,
+            Y = Y,
+            LeftHandleX = LeftHandleX,
+            LeftHandleY = LeftHandleY,
+            RightHandleX = RightHandleX,
+            RightHandleY = RightHandleY,
+            IsSelected = IsSelected
+        };
+    }
 }
