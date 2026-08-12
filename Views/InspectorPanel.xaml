@@ -17,7 +17,7 @@
           </Grid.ColumnDefinitions>
           <Label Content="X" Grid.Column="0" VerticalAlignment="Center"/>
           <TextBox Grid.Column="1"
-                   Text="{Binding SelectedPoint.X, StringFormat=F4,
+                   Text="{Binding SelectedPointRealX, StringFormat=F2,
                           UpdateSourceTrigger=PropertyChanged, FallbackValue='—'}"
                    IsEnabled="{Binding SelectedPoint, Converter={StaticResource NullToBool}}"/>
         </Grid>
@@ -29,7 +29,7 @@
           </Grid.ColumnDefinitions>
           <Label Content="Y" Grid.Column="0" VerticalAlignment="Center"/>
           <TextBox Grid.Column="1"
-                   Text="{Binding SelectedPoint.Y, StringFormat=F4,
+                   Text="{Binding SelectedPointRealY, StringFormat=F2,
                           UpdateSourceTrigger=PropertyChanged, FallbackValue='—'}"
                    IsEnabled="{Binding SelectedPoint, Converter={StaticResource NullToBool}}"/>
         </Grid>

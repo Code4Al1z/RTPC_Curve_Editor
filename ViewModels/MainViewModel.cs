@@ -136,6 +136,53 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(NativeTestInputReal));
     }
 
+    // ── Mapped Real-World Point Coordinates ──────────────────────────────────
+
+    public double SelectedPointRealX
+    {
+        get
+        {
+            if (SelectedPoint == null) return 0.0;
+            return Document.InputMin + SelectedPoint.X * (Document.InputMax - Document.InputMin);
+        }
+        set
+        {
+            if (SelectedPoint == null) return;
+            double range = Document.InputMax - Document.InputMin;
+            if (Math.Abs(range) < 1e-6) return;
+            double normalizedX = Math.Clamp((value - Document.InputMin) / range, 0.0, 1.0);
+
+            MovePoint(SelectedPoint, normalizedX, SelectedPoint.Y);
+            OnPropertyChanged(nameof(SelectedPointRealX));
+        }
+    }
+
+    public double SelectedPointRealY
+    {
+        get
+        {
+            if (SelectedPoint == null) return 0.0;
+            return Document.OutputMin + SelectedPoint.Y * (Document.OutputMax - Document.OutputMin);
+        }
+        set
+        {
+            if (SelectedPoint == null) return;
+            double range = Document.OutputMax - Document.OutputMin;
+            if (Math.Abs(range) < 1e-6) return;
+            double normalizedY = Math.Clamp((value - Document.OutputMin) / range, 0.0, 1.0);
+
+            MovePoint(SelectedPoint, SelectedPoint.X, normalizedY);
+            OnPropertyChanged(nameof(SelectedPointRealY));
+        }
+    }
+
+    // Trigger property updates when selection or curve changes
+    partial void OnSelectedPointChanged(CurvePoint? value)
+    {
+        OnPropertyChanged(nameof(SelectedPointRealX));
+        OnPropertyChanged(nameof(SelectedPointRealY));
+    }
+
     // ── Undo/Redo ─────────────────────────────────────────────────────────
 
     public bool CanUndo => UndoRedo.CanUndo;
@@ -527,6 +574,8 @@ public partial class MainViewModel : ObservableObject
     private void RaiseCurveChanged()
     {
         NotifyNativeTestProperties();
+        OnPropertyChanged(nameof(SelectedPointRealX));
+        OnPropertyChanged(nameof(SelectedPointRealY));
         CurveChanged?.Invoke();
     }
 
