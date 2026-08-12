@@ -23,7 +23,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\RTPCCurveEvaluatorNative\RTPCCurveEvaluatorNative.vcxproj" />
+	  <ProjectReference Include="RTPCCurveEvaluatorNative\RTPCCurveEvaluatorNative.vcxproj" />
 	</ItemGroup>
 
 </Project>
