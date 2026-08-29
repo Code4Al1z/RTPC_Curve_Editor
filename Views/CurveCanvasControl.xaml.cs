@@ -32,6 +32,7 @@ public partial class CurveCanvasControl : UserControl
     private SKPoint _pan = SKPoint.Empty;
     private double _dragStartX, _dragStartY;
     private double _dragStartHandleX, _dragStartHandleY;
+    private double _dragStartLHX, _dragStartLHY, _dragStartRHX, _dragStartRHY;
 
     public CurveCanvasControl()
     {
@@ -44,6 +45,7 @@ public partial class CurveCanvasControl : UserControl
             if (DataContext is MainViewModel vm)
             {
                 vm.PropertyChanged += (sender, args) => SkiaElement?.InvalidateVisual();
+                vm.CurveChanged += () => SkiaElement?.InvalidateVisual();
             }
             SkiaElement?.InvalidateVisual();
         };
@@ -62,17 +64,11 @@ public partial class CurveCanvasControl : UserControl
 
     private SKRect PlotBounds => SKRect.Create(CanvasPadding, CanvasPadding, PlotW, PlotH);
 
-    /// <summary>
-    /// Maps normalized curve space (0..1, 0..1) to screen pixel coordinates.
-    /// </summary>
     private SKPoint ToCanvas(double nx, double ny) => new(
         CanvasPadding + (float)nx * PlotW * _zoom + _pan.X,
         CanvasHeight - CanvasPadding - (float)ny * PlotH * _zoom + _pan.Y
     );
 
-    /// <summary>
-    /// Maps screen pixel coordinates to normalized curve space (0..1, 0..1).
-    /// </summary>
     private (double nx, double ny) ToNorm(SKPoint p) => (
         (p.X - CanvasPadding - _pan.X) / (PlotW * _zoom),
         (CanvasHeight - CanvasPadding + _pan.Y - p.Y) / (PlotH * _zoom)
@@ -143,10 +139,8 @@ public partial class CurveCanvasControl : UserControl
         canvas.Clear(new SKColor(23, 23, 31));
         if (VM == null || PlotW <= 0 || PlotH <= 0) return;
 
-        // Draw grid lines and axes first
         DrawGridAndAxes(canvas);
 
-        // Clip curve rendering exclusively to the inner plot viewport
         canvas.Save();
         canvas.ClipRect(PlotBounds);
 
@@ -183,7 +177,6 @@ public partial class CurveCanvasControl : UserControl
         using var labelFont = new SKFont(SKTypeface.Default, 11);
         using var labelPaint = new SKPaint { Color = new SKColor(138, 136, 160), IsAntialias = true };
 
-        // Determine visible bounds in normalized curve space
         var (visNxMin, visNyMax) = ToNorm(new SKPoint(CanvasPadding, CanvasPadding));
         var (visNxMax, visNyMin) = ToNorm(new SKPoint(CanvasWidth - CanvasPadding, CanvasHeight - CanvasPadding));
 
@@ -195,11 +188,9 @@ public partial class CurveCanvasControl : UserControl
         double visYMin = outMin + visNyMin * (outMax - outMin);
         double visYMax = outMin + visNyMax * (outMax - outMin);
 
-        // Calculate dynamic grid tick steps (nice numbers algorithm)
         double xStep = GetNiceInterval(visXMax - visXMin, targetTicks: 8);
         double yStep = GetNiceInterval(visYMax - visYMin, targetTicks: 8);
 
-        // 1. Draw Vertical Grid Lines & X Labels
         double firstX = Math.Floor(visXMin / xStep) * xStep;
         for (double x = firstX; x <= visXMax; x += xStep)
         {
@@ -213,7 +204,6 @@ public partial class CurveCanvasControl : UserControl
             }
         }
 
-        // 2. Draw Horizontal Grid Lines & Y Labels
         double firstY = Math.Floor(visYMin / yStep) * yStep;
         for (double y = firstY; y <= visYMax; y += yStep)
         {
@@ -227,7 +217,6 @@ public partial class CurveCanvasControl : UserControl
             }
         }
 
-        // 3. Highlight 0-Origin Lines
         if (inMin < 0 && inMax > 0)
         {
             double norm0X = (0.0 - inMin) / (inMax - inMin);
@@ -239,11 +228,10 @@ public partial class CurveCanvasControl : UserControl
         {
             double norm0Y = (0.0 - outMin) / (outMax - outMin);
             var p0 = ToCanvas(0, norm0Y);
-            if (p0.Y >= CanvasPadding && p0.Y <= CanvasHeight - CanvasPadding)
+            if (p0.Y >= CanvasPadding && p0.Y <= CanvasWidth - CanvasPadding)
                 canvas.DrawLine(CanvasPadding, p0.Y, CanvasWidth - CanvasPadding, p0.Y, zeroLinePaint);
         }
 
-        // Outer Frame
         canvas.DrawRect(PlotBounds, framePaint);
     }
 
@@ -272,7 +260,6 @@ public partial class CurveCanvasControl : UserControl
         var poly = curve.GetPolyline(100);
         if (poly.Count < 2) return;
 
-        // Fill under curve
         using var fillPath = new SKPath();
         fillPath.MoveTo(ToCanvas(poly[0].X, poly[0].Y));
         foreach (var (x, y) in poly.Skip(1)) fillPath.LineTo(ToCanvas(x, y));
@@ -287,7 +274,6 @@ public partial class CurveCanvasControl : UserControl
         };
         canvas.DrawPath(fillPath, fillPaint);
 
-        // Curve glow effect
         if (isActive)
         {
             using var glowPath = new SKPath();
@@ -306,7 +292,6 @@ public partial class CurveCanvasControl : UserControl
             canvas.DrawPath(glowPath, glowPaint);
         }
 
-        // Draw individual curve segments
         for (int s = 0; s < sorted.Count - 1; s++)
         {
             var p0 = sorted[s];
@@ -407,8 +392,8 @@ public partial class CurveCanvasControl : UserControl
     {
         if (VM == null) return;
 
-        Focus();
-        Keyboard.ClearFocus();
+        this.Focus();
+        Keyboard.Focus(this);
 
         SkiaElement.CaptureMouse();
         var pos = ToSKPoint(e.GetPosition(SkiaElement));
@@ -420,7 +405,6 @@ public partial class CurveCanvasControl : UserControl
         _draggingHandle = false;
         _hasDragged = false;
 
-        // Middle Mouse Drag -> Pan Timeline
         if (e.MiddleButton == MouseButtonState.Pressed)
         {
             _isPanning = true;
@@ -462,8 +446,14 @@ public partial class CurveCanvasControl : UserControl
                 hitPt.IsSelected = true;
                 VM.SelectedPoint = hitPt;
                 _draggingPoint = hitPt;
+
                 _dragStartX = hitPt.X;
                 _dragStartY = hitPt.Y;
+
+                _dragStartLHX = hitPt.LeftHandleX;
+                _dragStartLHY = hitPt.LeftHandleY;
+                _dragStartRHX = hitPt.RightHandleX;
+                _dragStartRHY = hitPt.RightHandleY;
             }
             Redraw();
             return;
@@ -569,31 +559,27 @@ public partial class CurveCanvasControl : UserControl
                 double newX = _draggingRightHandle ? _draggingPoint.RightHandleX : _draggingPoint.LeftHandleX;
                 double newY = _draggingRightHandle ? _draggingPoint.RightHandleY : _draggingPoint.LeftHandleY;
 
-                if (_draggingRightHandle)
-                {
-                    _draggingPoint.RightHandleX = _dragStartHandleX;
-                    _draggingPoint.RightHandleY = _dragStartHandleY;
-                }
-                else
-                {
-                    _draggingPoint.LeftHandleX = _dragStartHandleX;
-                    _draggingPoint.LeftHandleY = _dragStartHandleY;
-                }
-
                 VM.UndoRedo.Execute(new MoveHandleCommand(
                     _draggingPoint, _draggingRightHandle,
-                    _dragStartHandleX, _dragStartHandleY, newX, newY));
+                    _dragStartHandleX, _dragStartHandleY, newX, newY,
+                    () => VM.RaiseCurveChanged()));
             }
             else
             {
                 double newX = _draggingPoint.X;
                 double newY = _draggingPoint.Y;
 
-                _draggingPoint.X = _dragStartX;
-                _draggingPoint.Y = _dragStartY;
-
-                VM.MovePoint(_draggingPoint, newX, newY);
+                VM.UndoRedo.Execute(new MovePointCommand(
+                    _draggingPoint,
+                    _dragStartX, _dragStartY, newX, newY,
+                    _dragStartLHX, _dragStartLHY, _draggingPoint.LeftHandleX, _draggingPoint.LeftHandleY,
+                    _dragStartRHX, _dragStartRHY, _draggingPoint.RightHandleX, _draggingPoint.RightHandleY,
+                    () => VM.RaiseCurveChanged()
+                ));
             }
+
+            // Force WPF CommandManager to refresh CanExecute for Ctrl+Z
+            CommandManager.InvalidateRequerySuggested();
         }
 
         _draggingPoint = null;
@@ -601,13 +587,10 @@ public partial class CurveCanvasControl : UserControl
         _hasDragged = false;
     }
 
-    // ── Mouse Wheel Timeline Zoom ──────────────────────────────────────────
-
     private void OnMouseWheel(object sender, MouseWheelEventArgs e)
     {
         var mousePos = ToSKPoint(e.GetPosition(SkiaElement));
 
-        // Get world-space normalized point under mouse before zoom
         var (nx, ny) = ToNorm(mousePos);
 
         float zoomFactor = e.Delta > 0 ? 1.2f : 1.0f / 1.2f;
@@ -617,7 +600,6 @@ public partial class CurveCanvasControl : UserControl
 
         _zoom = newZoom;
 
-        // Recalculate pan so (nx, ny) stays anchored under mouse cursor
         _pan.X = mousePos.X - CanvasPadding - (float)nx * PlotW * _zoom;
         _pan.Y = mousePos.Y - (CanvasHeight - CanvasPadding) + (float)ny * PlotH * _zoom;
 
@@ -634,7 +616,6 @@ public partial class CurveCanvasControl : UserControl
             return;
         }
 
-        // Keep view within valid timeline boundaries
         float minPanX = PlotW * (1.0f - _zoom);
         float maxPanX = 0f;
         float minPanY = 0f;
@@ -643,8 +624,6 @@ public partial class CurveCanvasControl : UserControl
         _pan.X = Math.Clamp(_pan.X, minPanX, maxPanX);
         _pan.Y = Math.Clamp(_pan.Y, minPanY, maxPanY);
     }
-
-    // ── Double-Click Point Creation/Deletion ──────────────────────────────
 
     private void OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
@@ -674,14 +653,36 @@ public partial class CurveCanvasControl : UserControl
         }
     }
 
-    // ── Keyboard Shortcuts ────────────────────────────────────────────────
-
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
         if (VM == null) return;
 
-        if (e.Key == Key.A && (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)))
+        // Ctrl + Z (Undo)
+        if (e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+            {
+                if (VM.CanRedo) VM.RedoCommand.Execute(null);
+            }
+            else
+            {
+                if (VM.CanUndo) VM.UndoCommand.Execute(null);
+            }
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl + Y (Redo)
+        if (e.Key == Key.Y && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            if (VM.CanRedo) VM.RedoCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl + A (Select All Points)
+        if (e.Key == Key.A && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
             foreach (var pt in VM.ActiveCurve.Points)
                 pt.IsSelected = true;

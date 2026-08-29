@@ -6,11 +6,13 @@
         Width="1280" Height="820"
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
-        Icon="../Assets/app_icon.ico">
+        Icon="../Assets/app_icon.ico"
+        Focusable="True">
 
 	<Window.InputBindings>
 		<KeyBinding Command="{Binding UndoCommand}" Key="Z" Modifiers="Ctrl"/>
 		<KeyBinding Command="{Binding RedoCommand}" Key="Y" Modifiers="Ctrl"/>
+		<KeyBinding Command="{Binding RedoCommand}" Key="Z" Modifiers="Ctrl+Shift"/>
 		<KeyBinding Command="{Binding SaveCommand}" Key="S" Modifiers="Ctrl"/>
 		<KeyBinding Command="{Binding OpenCommand}" Key="O" Modifiers="Ctrl"/>
 		<KeyBinding Command="{Binding NewDocumentCommand}" Key="N" Modifiers="Ctrl"/>

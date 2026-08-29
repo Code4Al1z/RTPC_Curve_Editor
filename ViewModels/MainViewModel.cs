@@ -31,29 +31,23 @@ public partial class MainViewModel : ObservableObject
 
     public UndoRedoStack UndoRedo { get; } = new();
     public ObservableCollection<CurvePreset> FilteredPresets { get; } = new();
-
-    // ── Fix: AllCurves is now a proper backing field, not a new collection
-    //         on every read. RefreshAllCurves() syncs it when the curve list changes.
     public ObservableCollection<BezierCurve> AllCurves { get; } = new();
 
     private string? _currentFilePath;
 
-    public ICollectionView PresetsView { get; } // Expose grouped CollectionView
+    public ICollectionView PresetsView { get; }
 
     public MainViewModel()
     {
         _activeCurve = Document.PrimaryCurve;
 
-        // Auto-smooth initial default curve handles
         _activeCurve.EnsureEndpoints();
         _activeCurve.AutoSmoothHandles();
 
         RefreshAllCurves();
 
-        // Re-render canvas live whenever document range properties (InputMin/Max, OutputMin/Max) change
         Document.PropertyChanged += (s, e) => RaiseCurveChanged();
 
-        // Create and configure grouping for the preset library view
         PresetsView = CollectionViewSource.GetDefaultView(FilteredPresets);
         PresetsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CurvePreset.Category)));
 
@@ -73,7 +67,6 @@ public partial class MainViewModel : ObservableObject
             AllCurves.Add(c);
     }
 
-    // Re-hooks range property listeners whenever Document is replaced
     partial void OnDocumentChanged(CurveDocument? oldValue, CurveDocument newValue)
     {
         if (oldValue != null)
@@ -176,7 +169,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // Trigger property updates when selection or curve changes
     partial void OnSelectedPointChanged(CurvePoint? value)
     {
         OnPropertyChanged(nameof(SelectedPointRealX));
@@ -201,7 +193,6 @@ public partial class MainViewModel : ObservableObject
     {
         var clearedPoints = new List<CurvePoint> { new(0, 0), new(1, 1) };
 
-        // Apply smoothing to cleared template
         var tempCurve = new BezierCurve { Points = clearedPoints };
         tempCurve.EnsureEndpoints();
         tempCurve.AutoSmoothHandles();
@@ -239,16 +230,28 @@ public partial class MainViewModel : ObservableObject
 
     public void MovePoint(CurvePoint pt, double newX, double newY)
     {
+        if (pt == null) return;
+
+        double oldX = pt.X;
+        double oldY = pt.Y;
+        double oldLHX = pt.LeftHandleX;
+        double oldLHY = pt.LeftHandleY;
+        double oldRHX = pt.RightHandleX;
+        double oldRHY = pt.RightHandleY;
+
         if (SnapToGrid) { newX = Snap(newX); newY = Snap(newY); }
         newX = Math.Clamp(newX, 0, 1);
         newY = Math.Clamp(newY, 0, 1);
-        UndoRedo.Execute(new MovePointCommand(pt, pt.X, pt.Y, newX, newY));
-        RaiseCurveChanged();
+
+        UndoRedo.Execute(new MovePointCommand(
+            pt,
+            oldX, oldY, newX, newY,
+            oldLHX, oldLHY, oldLHX, oldLHY,
+            oldRHX, oldRHY, oldRHX, oldRHY,
+            RaiseCurveChanged
+        ));
     }
 
-    // ── Selection helpers ─────────────────────────────────────────────────
-
-    /// Deselects all points on the active curve.
     public void ClearPointSelection()
     {
         foreach (var p in ActiveCurve.Points)
@@ -256,7 +259,6 @@ public partial class MainViewModel : ObservableObject
         SelectedPoint = null;
     }
 
-    /// Returns all currently selected points on the active curve, sorted by X.
     public List<CurvePoint> GetSelectedPoints() =>
         ActiveCurve.Points
             .Where(p => p.IsSelected)
@@ -310,20 +312,19 @@ public partial class MainViewModel : ObservableObject
 
         if (isFullCurve)
         {
-            // Use presetLeft.X / presetLeft.Y so Fade Out starts at Y = 1 instead of Y = 0
             var twoPoint = new List<CurvePoint>
-        {
-            new CurvePoint(presetLeft.X, presetLeft.Y)
             {
-                RightHandleX = presetLeft.RightHandleX,
-                RightHandleY = presetLeft.RightHandleY
-            },
-            new CurvePoint(presetRight.X, presetRight.Y)
-            {
-                LeftHandleX  = presetRight.LeftHandleX,
-                LeftHandleY  = presetRight.LeftHandleY
-            }
-        };
+                new CurvePoint(presetLeft.X, presetLeft.Y)
+                {
+                    RightHandleX = presetLeft.RightHandleX,
+                    RightHandleY = presetLeft.RightHandleY
+                },
+                new CurvePoint(presetRight.X, presetRight.Y)
+                {
+                    LeftHandleX  = presetRight.LeftHandleX,
+                    LeftHandleY  = presetRight.LeftHandleY
+                }
+            };
             UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, twoPoint, SelectedPreset.Name));
         }
         else
@@ -370,7 +371,6 @@ public partial class MainViewModel : ObservableObject
         Document = CurveDocument.CreateDefault();
         ActiveCurve = Document.PrimaryCurve;
 
-        // Auto-smooth initial document curve
         ActiveCurve.EnsureEndpoints();
         ActiveCurve.AutoSmoothHandles();
 
@@ -539,7 +539,6 @@ public partial class MainViewModel : ObservableObject
         curve.Points.Add(new CurvePoint(0, 0));
         curve.Points.Add(new CurvePoint(1, 1));
 
-        // Auto-smooth new comparison curve
         curve.EnsureEndpoints();
         curve.AutoSmoothHandles();
 
@@ -571,7 +570,7 @@ public partial class MainViewModel : ObservableObject
     // ── Helpers ───────────────────────────────────────────────────────────
 
     public event Action? CurveChanged;
-    private void RaiseCurveChanged()
+    public void RaiseCurveChanged()
     {
         NotifyNativeTestProperties();
         OnPropertyChanged(nameof(SelectedPointRealX));
