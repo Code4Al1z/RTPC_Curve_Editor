@@ -211,6 +211,73 @@ public class InsertPointCommand : ICurveCommand
     public CurvePoint? ResolveInsertedPoint() => _curve.Points.FirstOrDefault(p => p.Id == _insertedPointId);
 }
 
+// ── Add Curve ────────────────────────────────────────────────────────────────
+
+public class AddCurveCommand : ICurveCommand
+{
+    private readonly CurveDocument _document;
+    private readonly BezierCurve _curve;
+    private readonly Action? _onChanged;
+    public string Description => $"Add curve '{_curve.Name}'";
+
+    public AddCurveCommand(CurveDocument document, BezierCurve curve, Action? onChanged = null)
+    {
+        _document = document;
+        _curve = curve;
+        _onChanged = onChanged;
+    }
+
+    public void Execute()
+    {
+        if (!_document.Curves.Contains(_curve))
+            _document.Curves.Add(_curve);
+        _onChanged?.Invoke();
+    }
+
+    public void Undo()
+    {
+        _document.Curves.Remove(_curve);
+        _onChanged?.Invoke();
+    }
+}
+
+// ── Remove Curve ─────────────────────────────────────────────────────────────
+
+public class RemoveCurveCommand : ICurveCommand
+{
+    private readonly CurveDocument _document;
+    private readonly BezierCurve _curve;
+    private readonly int _index;
+    private readonly Action? _onChanged;
+    public string Description => $"Remove curve '{_curve.Name}'";
+
+    public RemoveCurveCommand(CurveDocument document, BezierCurve curve, Action? onChanged = null)
+    {
+        _document = document;
+        _curve = curve;
+        _index = document.Curves.IndexOf(curve);
+        _onChanged = onChanged;
+    }
+
+    public void Execute()
+    {
+        _document.Curves.Remove(_curve);
+        _onChanged?.Invoke();
+    }
+
+    public void Undo()
+    {
+        // Reinsert at the original index rather than appending, so PrimaryCurve
+        // (Curves[0]) and comparison-curve ordering come back exactly as they were.
+        if (!_document.Curves.Contains(_curve))
+        {
+            int insertAt = Math.Clamp(_index, 0, _document.Curves.Count);
+            _document.Curves.Insert(insertAt, _curve);
+        }
+        _onChanged?.Invoke();
+    }
+}
+
 // ── Apply Preset ─────────────────────────────────────────────────────────────
 
 public class ApplyPresetCommand : ICurveCommand

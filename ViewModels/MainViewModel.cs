@@ -596,8 +596,7 @@ public partial class MainViewModel : ObservableObject
         curve.EnsureEndpoints();
         curve.AutoSmoothHandles();
 
-        Document.Curves.Add(curve);
-        RefreshAllCurves();
+        UndoRedo.Execute(new AddCurveCommand(Document, curve, RefreshAllCurves));
         Status($"Added {curve.Name}.");
     }
 
@@ -613,10 +612,13 @@ public partial class MainViewModel : ObservableObject
     private void RemoveCurve(BezierCurve curve)
     {
         if (Document.Curves.Count <= 1) { Status("Cannot remove the last curve."); return; }
-        Document.Curves.Remove(curve);
-        if (ActiveCurve == curve) ActiveCurve = Document.PrimaryCurve;
-        RefreshAllCurves();
-        IsDirty = true;
+        bool wasActive = ActiveCurve == curve;
+
+        UndoRedo.Execute(new RemoveCurveCommand(Document, curve, RefreshAllCurves));
+        // Selecting a different curve is view state, not document content, so it
+        // isn't itself tracked on the undo stack; if the removed curve comes back
+        // via Redo, ActiveCurve simply stays wherever it already was.
+        if (wasActive) ActiveCurve = Document.PrimaryCurve;
         RaiseCurveChanged();
         Status($"Removed {curve.Name}.");
     }
