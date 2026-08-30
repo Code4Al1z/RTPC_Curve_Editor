@@ -55,6 +55,14 @@ public partial class MainViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(CanUndo));
             OnPropertyChanged(nameof(CanRedo));
+            // CommunityToolkit.Mvvm's RelayCommand does NOT hook into
+            // CommandManager.RequerySuggested (that was only true of the old
+            // MvvmLight-style RelayCommand). Without this, neither the Edit menu's
+            // Undo/Redo items nor the Ctrl+Z/Ctrl+Y KeyBindings ever notice that
+            // CanUndo/CanRedo changed, and they stay stuck at whatever they were
+            // when the app started (disabled, since the stack starts empty).
+            UndoCommand.NotifyCanExecuteChanged();
+            RedoCommand.NotifyCanExecuteChanged();
             IsDirty = true;
         };
         RefreshPresets();
@@ -244,6 +252,7 @@ public partial class MainViewModel : ObservableObject
         newY = Math.Clamp(newY, 0, 1);
 
         UndoRedo.Execute(new MovePointCommand(
+            ActiveCurve,
             pt,
             oldX, oldY, newX, newY,
             oldLHX, oldLHY, oldLHX, oldLHY,

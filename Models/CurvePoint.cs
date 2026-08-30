@@ -4,6 +4,14 @@ namespace RTPCCurveEditor.Models;
 
 public partial class CurvePoint : ObservableObject
 {
+    // Stable identity that survives Clone(). ApplyPresetCommand (and anything else
+    // that clears+repopulates a curve's Points list) replaces every CurvePoint
+    // object with a fresh clone. Commands that mutate a specific point (Move, Add,
+    // Delete) must resolve the live object by this Id instead of holding a direct
+    // object reference, or they silently become no-ops once a preset command has
+    // run on the same curve.
+    public Guid Id { get; set; } = Guid.NewGuid();
+
     [ObservableProperty] private double _x;
     [ObservableProperty] private double _y;
     [ObservableProperty] private double _leftHandleX = -0.05;
@@ -49,6 +57,7 @@ public partial class CurvePoint : ObservableObject
     {
         return new CurvePoint
         {
+            Id = Id,
             X = X,
             Y = Y,
             LeftHandleX = LeftHandleX,

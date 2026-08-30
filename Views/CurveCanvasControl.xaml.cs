@@ -560,7 +560,7 @@ public partial class CurveCanvasControl : UserControl
                 double newY = _draggingRightHandle ? _draggingPoint.RightHandleY : _draggingPoint.LeftHandleY;
 
                 VM.UndoRedo.Execute(new MoveHandleCommand(
-                    _draggingPoint, _draggingRightHandle,
+                    VM.ActiveCurve, _draggingPoint, _draggingRightHandle,
                     _dragStartHandleX, _dragStartHandleY, newX, newY,
                     () => VM.RaiseCurveChanged()));
             }
@@ -570,6 +570,7 @@ public partial class CurveCanvasControl : UserControl
                 double newY = _draggingPoint.Y;
 
                 VM.UndoRedo.Execute(new MovePointCommand(
+                    VM.ActiveCurve,
                     _draggingPoint,
                     _dragStartX, _dragStartY, newX, newY,
                     _dragStartLHX, _dragStartLHY, _draggingPoint.LeftHandleX, _draggingPoint.LeftHandleY,
@@ -577,9 +578,6 @@ public partial class CurveCanvasControl : UserControl
                     () => VM.RaiseCurveChanged()
                 ));
             }
-
-            // Force WPF CommandManager to refresh CanExecute for Ctrl+Z
-            CommandManager.InvalidateRequerySuggested();
         }
 
         _draggingPoint = null;
@@ -642,12 +640,32 @@ public partial class CurveCanvasControl : UserControl
         var (nx, _) = ToNorm(pos);
         if (nx >= 0 && nx <= 1)
         {
+            // InsertPointSeamlessly mutates the curve directly, so snapshot
+            // before/after and record the change as a proper command instead
+            // of leaving the raw mutation in place (which Undo could never see).
+            var oldSnapshot = VM.ActiveCurve.Points.Select(p => p.Clone()).ToList();
             var inserted = VM.ActiveCurve.InsertPointSeamlessly(nx);
+
             if (inserted != null)
             {
+                var newSnapshot = VM.ActiveCurve.Points.Select(p => p.Clone()).ToList();
+
+                // Revert the direct mutation InsertPointSeamlessly just made,
+                // so the transition happens exactly once, through Execute().
+                VM.ActiveCurve.Points.Clear();
+                VM.ActiveCurve.Points.AddRange(oldSnapshot);
+
+                var command = new InsertPointCommand(VM.ActiveCurve, oldSnapshot, newSnapshot, inserted.Id);
+                VM.UndoRedo.Execute(command);
+
                 VM.ClearPointSelection();
-                inserted.IsSelected = true;
-                VM.SelectedPoint = inserted;
+                var selected = command.ResolveInsertedPoint();
+                if (selected != null)
+                {
+                    selected.IsSelected = true;
+                    VM.SelectedPoint = selected;
+                }
+                VM.RaiseCurveChanged();
             }
             Redraw();
         }
@@ -658,28 +676,12 @@ public partial class CurveCanvasControl : UserControl
         base.OnKeyDown(e);
         if (VM == null) return;
 
-        // Ctrl + Z (Undo)
-        if (e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-        {
-            if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
-            {
-                if (VM.CanRedo) VM.RedoCommand.Execute(null);
-            }
-            else
-            {
-                if (VM.CanUndo) VM.UndoCommand.Execute(null);
-            }
-            e.Handled = true;
-            return;
-        }
-
-        // Ctrl + Y (Redo)
-        if (e.Key == Key.Y && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
-        {
-            if (VM.CanRedo) VM.RedoCommand.Execute(null);
-            e.Handled = true;
-            return;
-        }
+        // Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z are intentionally NOT handled here.
+        // They're already bound at the Window level (see MainWindow.xaml InputBindings).
+        // WPF's InputBindings fire on KeyDown regardless of e.Handled, so handling
+        // them again here caused undo/redo to fire twice whenever the canvas held
+        // keyboard focus (e.g. right after dragging a point), silently swallowing
+        // or over-skipping steps on the undo stack.
 
         // Ctrl + A (Select All Points)
         if (e.Key == Key.A && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
