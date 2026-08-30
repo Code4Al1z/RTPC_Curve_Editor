@@ -24,7 +24,16 @@ public static class WwiseXmlService
         {
             // High-fidelity baking: Sample exact C++ / Bézier evaluation.
             // Omit redundant shape attributes for clean, lightweight XML.
-            var polyline = curve.GetPolyline(sampleCount);
+            //
+            // GetPolyline's parameter is steps PER SEGMENT, not a total point
+            // budget for the whole curve — passing sampleCount straight through
+            // was exporting roughly (segments * sampleCount) points, ballooning
+            // fast on any curve with more than two control points. Scale it down
+            // so sampleCount means what the caller of Export() would expect: an
+            // approximate total point count for the exported curve.
+            int segmentCount = Math.Max(1, curve.Points.Count - 1);
+            int stepsPerSegment = Math.Max(2, sampleCount / segmentCount);
+            var polyline = curve.GetPolyline(stepsPerSegment);
             graphPoints = polyline.Select(pt => new XElement("GraphPoint",
                 new XAttribute("x", Lerp(inMin, inMax, pt.X).ToString("F4", CultureInfo.InvariantCulture)),
                 new XAttribute("y", Lerp(outMin, outMax, pt.Y).ToString("F4", CultureInfo.InvariantCulture))
@@ -124,10 +133,18 @@ public static class WwiseXmlService
             double nextX = i < graphPoints.Count - 1 ? InverseLerp(doc.InputMin, doc.InputMax,
                 double.Parse(graphPoints[i + 1].Attribute("x")!.Value, CultureInfo.InvariantCulture)) : nx;
 
+            // Also track the neighbors' Y so a "Linear" point's tangent can
+            // follow the real slope between them (see ApplyShapeHandles).
+            double prevY = i > 0 ? InverseLerp(doc.OutputMin, doc.OutputMax,
+                double.Parse(graphPoints[i - 1].Attribute("y")!.Value, CultureInfo.InvariantCulture)) : ny;
+            double nextY = i < graphPoints.Count - 1 ? InverseLerp(doc.OutputMin, doc.OutputMax,
+                double.Parse(graphPoints[i + 1].Attribute("y")!.Value, CultureInfo.InvariantCulture)) : ny;
+
             double segmentWidth = Math.Max(0.01, (nextX - prevX) * 0.5);
+            double localSlope = Math.Abs(nextX - prevX) > 1e-9 ? (nextY - prevY) / (nextX - prevX) : 0.0;
 
             // Apply matching handles based on the Wwise shape tag
-            ApplyShapeHandles(pt, shape, segmentWidth);
+            ApplyShapeHandles(pt, shape, segmentWidth, localSlope);
             curve.Points.Add(pt);
         }
 
@@ -156,7 +173,7 @@ public static class WwiseXmlService
         return "Linear";
     }
 
-    private static void ApplyShapeHandles(CurvePoint pt, string shape, double segmentWidth)
+    private static void ApplyShapeHandles(CurvePoint pt, string shape, double segmentWidth, double localSlope)
     {
         double hX = Math.Min(0.25, segmentWidth * 0.33);
 
@@ -180,9 +197,20 @@ public static class WwiseXmlService
                 break;
 
             case "Constant":
-            default: // Linear
+                // A genuinely held/step value: the tangent really is flat here.
                 pt.RightHandleX = hX; pt.RightHandleY = 0.0;
                 pt.LeftHandleX = -hX; pt.LeftHandleY = 0.0;
+                break;
+
+            default: // Linear
+                // A straight line's tangent follows the actual slope between
+                // its neighbors, not a flat/horizontal handle. Forcing it flat
+                // here was creating a fake "ease" bend at every single point —
+                // most visible on baked/sampled exports, since those never
+                // write a shape attribute and so always fall through to this
+                // case on import.
+                pt.RightHandleX = hX; pt.RightHandleY = localSlope * hX;
+                pt.LeftHandleX = -hX; pt.LeftHandleY = -localSlope * hX;
                 break;
         }
     }
