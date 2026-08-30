@@ -75,6 +75,24 @@ public partial class MainViewModel : ObservableObject
             AllCurves.Add(c);
     }
 
+    // AddCurveCommand/RemoveCurveCommand pass this as their onChanged callback.
+    // Undoing an add (or redoing a remove) can leave ActiveCurve pointing at a
+    // BezierCurve object that's no longer in Document.Curves at all — the
+    // Inspector's curve list (AllCurves) picks that up fine since it's rebuilt
+    // from Document.Curves, but CurveCanvasControl draws VM.ActiveCurve
+    // unconditionally, so the orphaned curve kept rendering forever. Re-check
+    // the invariant every time the curves list changes, rather than patching
+    // each call site that mutates it.
+    private void OnCurvesListChanged()
+    {
+        RefreshAllCurves();
+        if (!Document.Curves.Contains(ActiveCurve))
+        {
+            ActiveCurve = Document.PrimaryCurve;
+            SelectedPoint = null;
+        }
+    }
+
     partial void OnDocumentChanged(CurveDocument? oldValue, CurveDocument newValue)
     {
         if (oldValue != null)
@@ -596,7 +614,7 @@ public partial class MainViewModel : ObservableObject
         curve.EnsureEndpoints();
         curve.AutoSmoothHandles();
 
-        UndoRedo.Execute(new AddCurveCommand(Document, curve, RefreshAllCurves));
+        UndoRedo.Execute(new AddCurveCommand(Document, curve, OnCurvesListChanged));
         Status($"Added {curve.Name}.");
     }
 
@@ -612,13 +630,11 @@ public partial class MainViewModel : ObservableObject
     private void RemoveCurve(BezierCurve curve)
     {
         if (Document.Curves.Count <= 1) { Status("Cannot remove the last curve."); return; }
-        bool wasActive = ActiveCurve == curve;
 
-        UndoRedo.Execute(new RemoveCurveCommand(Document, curve, RefreshAllCurves));
-        // Selecting a different curve is view state, not document content, so it
-        // isn't itself tracked on the undo stack; if the removed curve comes back
-        // via Redo, ActiveCurve simply stays wherever it already was.
-        if (wasActive) ActiveCurve = Document.PrimaryCurve;
+        // OnCurvesListChanged (passed below) runs synchronously as part of
+        // Execute()/Undo(), so ActiveCurve is already corrected by the time
+        // UndoRedo.Execute returns — no separate fixup needed here.
+        UndoRedo.Execute(new RemoveCurveCommand(Document, curve, OnCurvesListChanged));
         RaiseCurveChanged();
         Status($"Removed {curve.Name}.");
     }
