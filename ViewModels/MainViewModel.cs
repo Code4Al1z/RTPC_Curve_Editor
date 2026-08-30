@@ -92,10 +92,46 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private double _nativeTestInput = 0.5;
 
+    // Cached once known. This section calls into RTPCCurveEvaluatorNative.dll
+    // via P/Invoke, which throws (DllNotFoundException / BadImageFormatException
+    // / EntryPointNotFoundException) if the native project wasn't built, or was
+    // built for a different platform than the one the DLL was copied for. That
+    // exception would otherwise come straight out of a data-bound property
+    // getter with nothing in the app to catch it, crashing the app on launch.
+    private bool? _nativeEvaluatorAvailable;
+
+    public bool NativeEvaluatorAvailable
+    {
+        get
+        {
+            if (_nativeEvaluatorAvailable.HasValue) return _nativeEvaluatorAvailable.Value;
+            _nativeEvaluatorAvailable = TryEvaluateNative(0, 0, 0, 0, 1, 1, 1, 1, 0.5, out _);
+            return _nativeEvaluatorAvailable.Value;
+        }
+    }
+
+    private static bool TryEvaluateNative(
+        double p0x, double p0y, double c0x, double c0y,
+        double c1x, double c1y, double p1x, double p1y,
+        double x, out double result)
+    {
+        try
+        {
+            result = NativeEvaluator.EvaluateCubicBezierYAtX(p0x, p0y, c0x, c0y, c1x, c1y, p1x, p1y, x);
+            return true;
+        }
+        catch (Exception)
+        {
+            result = 0.0;
+            return false;
+        }
+    }
+
     public double NativeTestOutput
     {
         get
         {
+            if (!NativeEvaluatorAvailable) return 0.0;
             if (ActiveCurve?.Points == null) return 0.0;
             var points = ActiveCurve.Points.OrderBy(p => p.X).ToList();
             if (points.Count < 2) return 0.0;
@@ -109,12 +145,21 @@ public partial class MainViewModel : ObservableObject
 
                 if (x >= p0.X && x <= p1.X)
                 {
-                    return NativeEvaluator.EvaluateCubicBezierYAtX(
+                    if (TryEvaluateNative(
                         p0.X, p0.Y,
                         p0.X + p0.RightHandleX, p0.Y + p0.RightHandleY,
                         p1.X + p1.LeftHandleX, p1.Y + p1.LeftHandleY,
                         p1.X, p1.Y,
-                        x);
+                        x, out double result))
+                    {
+                        return result;
+                    }
+
+                    // The DLL was loadable at startup but this specific call
+                    // failed; flip the flag so the UI hides the section too.
+                    _nativeEvaluatorAvailable = false;
+                    OnPropertyChanged(nameof(NativeEvaluatorAvailable));
+                    return 0.0;
                 }
             }
 
