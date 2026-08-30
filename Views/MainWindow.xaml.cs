@@ -17,6 +17,11 @@ public partial class MainWindow : Window
         // Wire canvas to ViewModel events so the canvas redraws on any model change
         VM.CurveChanged += () => CurveCanvas.Redraw();
 
+        Closing += (_, e) =>
+        {
+            if (!VM.ConfirmDiscard()) e.Cancel = true;
+        };
+
         // Delete key removes selected point (unless user is typing in a TextBox)
         KeyDown += (_, e) =>
         {

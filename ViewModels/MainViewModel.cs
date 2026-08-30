@@ -597,7 +597,7 @@ public partial class MainViewModel : ObservableObject
     private static double Snap(double v, double grid = 0.05)
         => Math.Round(v / grid) * grid;
 
-    private bool ConfirmDiscard()
+    public bool ConfirmDiscard()
     {
         if (!IsDirty) return true;
         var result = MessageBox.Show(
