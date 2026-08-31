@@ -35,6 +35,17 @@ public partial class MainViewModel : ObservableObject
 
     private string? _currentFilePath;
 
+    // Document.PropertyChanged (below) covers document-level properties
+    // (InputMin/Max etc.), but says nothing about an individual BezierCurve's
+    // own properties changing — ColorHex from the new colour picker, IsVisible
+    // from the comparison-curve list's checkbox, etc. Those are bound directly
+    // to the model and never call RaiseCurveChanged() themselves, so without
+    // this, the canvas only picked up the change on whatever the next
+    // unrelated repaint happened to be (e.g. clicking the canvas). Track which
+    // curves we're currently subscribed to so curves can be added/removed
+    // freely without leaking or double-subscribing.
+    private readonly HashSet<BezierCurve> _subscribedCurves = new();
+
     public ICollectionView PresetsView { get; }
 
     public MainViewModel()
@@ -45,7 +56,13 @@ public partial class MainViewModel : ObservableObject
         _activeCurve.AutoSmoothHandles();
 
         RefreshAllCurves();
+        SyncCurveSubscriptions();
 
+        // The [ObservableProperty] field initializer above bypasses the
+        // generated Document property setter, so OnDocumentChanged (below)
+        // never fires for this first document — wire it up explicitly here.
+        // Every later reassignment (NewDocument, OpenAsync) goes through the
+        // real setter and is covered by OnDocumentChanged automatically.
         Document.PropertyChanged += (s, e) => RaiseCurveChanged();
 
         PresetsView = CollectionViewSource.GetDefaultView(FilteredPresets);
@@ -68,12 +85,46 @@ public partial class MainViewModel : ObservableObject
         RefreshPresets();
     }
 
+    // Fires on every Document reassignment after the constructor (NewDocument,
+    // OpenAsync, or any future call site) — resubscribes to the new document's
+    // PropertyChanged (the constructor's subscription only ever pointed at the
+    // very first document, so without this, replacing the document silently
+    // stopped range-change edits from repainting the canvas) and re-syncs
+    // per-curve subscriptions for the new document's curve list.
+    partial void OnDocumentChanged(CurveDocument value)
+    {
+        value.PropertyChanged += (s, e) => RaiseCurveChanged();
+        SyncCurveSubscriptions();
+    }
+
     private void RefreshAllCurves()
     {
         AllCurves.Clear();
         foreach (var c in Document.Curves)
             AllCurves.Add(c);
     }
+
+    // Keeps _subscribedCurves in sync with whatever's actually in
+    // Document.Curves right now. Safe to call as often as needed — curves
+    // already subscribed are left alone, so this never double-subscribes.
+    private void SyncCurveSubscriptions()
+    {
+        var current = new HashSet<BezierCurve>(Document.Curves);
+
+        foreach (var curve in _subscribedCurves.Where(c => !current.Contains(c)).ToList())
+        {
+            curve.PropertyChanged -= OnAnyCurvePropertyChanged;
+            _subscribedCurves.Remove(curve);
+        }
+
+        foreach (var curve in current.Where(c => !_subscribedCurves.Contains(c)).ToList())
+        {
+            curve.PropertyChanged += OnAnyCurvePropertyChanged;
+            _subscribedCurves.Add(curve);
+        }
+    }
+
+    private void OnAnyCurvePropertyChanged(object? sender, PropertyChangedEventArgs e) => RaiseCurveChanged();
 
     // AddCurveCommand/RemoveCurveCommand pass this as their onChanged callback.
     // Undoing an add (or redoing a remove) can leave ActiveCurve pointing at a
@@ -86,6 +137,7 @@ public partial class MainViewModel : ObservableObject
     private void OnCurvesListChanged()
     {
         RefreshAllCurves();
+        SyncCurveSubscriptions();
         if (!Document.Curves.Contains(ActiveCurve))
         {
             ActiveCurve = Document.PrimaryCurve;
