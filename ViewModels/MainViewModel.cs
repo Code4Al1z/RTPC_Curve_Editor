@@ -575,25 +575,63 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ImportWwiseXml()
     {
+        if (Document.Curves.Count >= 4) { Status("Maximum 4 comparison curves — remove one before importing another."); return; }
+
         var dlg = new OpenFileDialog
         {
             Filter = "XML files (*.xml)|*.xml|All files (*.*)|*.*",
-            Title = "Import Wwise XML curve"
+            Title = "Import Wwise XML as comparison curve"
         };
         if (dlg.ShowDialog() != true) return;
+
         try
         {
             var xml = File.ReadAllText(dlg.FileName);
-            Document = WwiseXmlService.Import(xml);
-            ActiveCurve = Document.PrimaryCurve;
+            var imported = WwiseXmlService.Import(xml);
+            var importedCurve = imported.PrimaryCurve;
+
+            // All curves in a CurveDocument share one InputMin/Max/OutputMin/Max —
+            // comparison curves don't have an independent range of their own. If
+            // the imported file's original range doesn't match the current
+            // workspace, dropping its points in as-is would silently reinterpret
+            // them under the wrong real-world scale, so we require the ranges to
+            // already match rather than guess or auto-convert.
+            if (!RangesMatch(imported, Document))
+            {
+                Error(
+                    $"Can't import: this file's mapping range " +
+                    $"([{imported.InputMin:0.##}, {imported.InputMax:0.##}] → [{imported.OutputMin:0.##}, {imported.OutputMax:0.##}]) " +
+                    $"doesn't match the current workspace's " +
+                    $"([{Document.InputMin:0.##}, {Document.InputMax:0.##}] → [{Document.OutputMin:0.##}, {Document.OutputMax:0.##}]). " +
+                    $"Match the workspace's RTPC mapping range first, then try importing again.");
+                return;
+            }
+
+            importedCurve.Name = MakeUniqueCurveName(importedCurve.Name);
+
+            UndoRedo.Execute(new AddCurveCommand(Document, importedCurve, OnCurvesListChanged));
+            ActiveCurve = importedCurve;
             SelectedPoint = null;
-            UndoRedo.Clear();
-            IsDirty = true;
-            RefreshAllCurves();
             RaiseCurveChanged();
-            Status($"Imported Wwise XML — {Document.PrimaryCurve.Points.Count} points.");
+            Status($"Imported '{importedCurve.Name}' as a new comparison curve — {importedCurve.Points.Count} points.");
         }
         catch (Exception ex) { Error($"Import failed: {ex.Message}"); }
+    }
+
+    private static bool RangesMatch(CurveDocument a, CurveDocument b, double epsilon = 1e-6) =>
+        Math.Abs(a.InputMin - b.InputMin) < epsilon &&
+        Math.Abs(a.InputMax - b.InputMax) < epsilon &&
+        Math.Abs(a.OutputMin - b.OutputMin) < epsilon &&
+        Math.Abs(a.OutputMax - b.OutputMax) < epsilon;
+
+    private string MakeUniqueCurveName(string baseName)
+    {
+        if (Document.Curves.All(c => c.Name != baseName)) return baseName;
+        int i = 2;
+        string candidate;
+        do { candidate = $"{baseName} ({i++})"; }
+        while (Document.Curves.Any(c => c.Name == candidate));
+        return candidate;
     }
 
     // ── Comparison curves ─────────────────────────────────────────────────
