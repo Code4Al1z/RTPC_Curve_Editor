@@ -1,15 +1,18 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace RTPCCurveEditor.Models;
 
 /// <summary>
 /// An ordered list of CurvePoints defining a piecewise cubic Bézier curve.
 /// Segments are interpolated between consecutive anchor points using their handles.
 /// </summary>
-public class BezierCurve
+public partial class BezierCurve : ObservableObject
 {
     public List<CurvePoint> Points { get; set; } = new();
-    public string Name { get; set; } = "Untitled";
-    public string ColorHex { get; set; } = "#7F77DD";
-    public bool IsVisible { get; set; } = true;
+
+    [ObservableProperty] private string _name = "Untitled";
+    [ObservableProperty] private string _colorHex = "#7F77DD";
+    [ObservableProperty] private bool _isVisible = true;
 
     // --- Sampling & Editing -----------------------------------------------
 
