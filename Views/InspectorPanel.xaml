@@ -149,7 +149,21 @@
 					<ItemsControl.ItemTemplate>
 						<DataTemplate>
 							<Border Margin="0,2" Padding="8,6" CornerRadius="4"
-									BorderBrush="#2A2A38" BorderThickness="1">
+									BorderThickness="1" Cursor="Hand"
+									MouseLeftButtonUp="OnCurveRowClick"
+									ToolTip="Click to make this the active curve">
+								<Border.BorderBrush>
+									<MultiBinding Converter="{StaticResource ActiveCurveBorder}">
+										<Binding/>
+										<Binding Path="DataContext.ActiveCurve" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+									</MultiBinding>
+								</Border.BorderBrush>
+								<Border.Background>
+									<MultiBinding Converter="{StaticResource ActiveCurveBorder}" ConverterParameter="background">
+										<Binding/>
+										<Binding Path="DataContext.ActiveCurve" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+									</MultiBinding>
+								</Border.Background>
 								<Grid>
 									<Grid.ColumnDefinitions>
 										<ColumnDefinition Width="10"/>

@@ -5,6 +5,7 @@
 
 	<conv:NullToBoolConverter x:Key="NullToBool"/>
 	<conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis"/>
+	<conv:ActiveCurveBorderConverter x:Key="ActiveCurveBorder"/>
 	<BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
 	<!-- ── Palette ─────────────────────────────────────────────────────── -->
