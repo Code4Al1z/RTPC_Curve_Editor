@@ -9,8 +9,12 @@ public static class WwiseXmlService
 {
     /// <summary>
     /// Export the primary curve to Wwise RTPC XML format.
-    /// Default mode (bakeSampledPoints = true) samples the curve to guarantee 
-    /// 100% mathematical fidelity inside Wwise.
+    /// Default mode (bakeSampledPoints = true) samples the curve so the shape
+    /// reads correctly as plain point data anywhere, including in Wwise itself.
+    /// Every export also embeds a private extension block with the exact
+    /// original control points and handles (see BuildExactPointsExtension),
+    /// so a file round-tripped back through Import() on this app comes back
+    /// exactly as exported — regardless of export mode.
     /// </summary>
     public static string Export(CurveDocument doc, bool bakeSampledPoints = true, int sampleCount = 32)
     {
@@ -69,13 +73,49 @@ public static class WwiseXmlService
             new XElement("InputMax", inMax.ToString(CultureInfo.InvariantCulture)),
             new XElement("OutputMin", outMin.ToString(CultureInfo.InvariantCulture)),
             new XElement("OutputMax", outMax.ToString(CultureInfo.InvariantCulture)),
-            new XElement("Curve", graphPoints)
+            new XElement("Curve", graphPoints),
+            BuildExactPointsExtension(curve)
         );
 
         return new XDocument(
             new XDeclaration("1.0", "utf-8", null),
             xml
         ).ToString();
+    }
+
+    // Wwise's curve editor only understands the fixed set of named segment
+    // shapes handled in ApplyShapeHandles below (Linear, Constant, SCurve,
+    // ExpX, LogX) — it has no concept of an arbitrary bezier handle. So
+    // exporting to <Curve>/<GraphPoint> is a genuinely lossy step for any
+    // custom curve whose tangents don't already match one of those shapes,
+    // and no amount of reconstruction cleverness on Import() can undo that;
+    // Wwise itself couldn't represent the original curve exactly either.
+    //
+    // This extension block sidesteps that for the one case we actually
+    // control: re-opening a file THIS app exported. It stores the exact
+    // point/handle values as extra, unrecognized XML that Wwise (and any
+    // other well-behaved XML consumer) will simply ignore. Import() checks
+    // for it first and restores the curve exactly, byte-for-byte in terms of
+    // shape, when present, and only falls back to the lossy GraphPoint/shape
+    // reconstruction for files that didn't come from this app (e.g. authored
+    // directly in Wwise, or exported by an older version of this tool).
+    private static XElement BuildExactPointsExtension(BezierCurve curve)
+    {
+        var culture = CultureInfo.InvariantCulture;
+        return new XElement("RTPCCurveEditorExtension",
+            new XAttribute("version", "1"),
+            new XComment(" Private extension for exact round-trip fidelity when reopened in RTPC Curve Editor. Safe for other tools, including Wwise, to ignore. "),
+            new XElement("ExactPoints",
+                curve.Points.OrderBy(p => p.X).Select(p => new XElement("Point",
+                    new XAttribute("x", p.X.ToString("F6", culture)),
+                    new XAttribute("y", p.Y.ToString("F6", culture)),
+                    new XAttribute("lhx", p.LeftHandleX.ToString("F6", culture)),
+                    new XAttribute("lhy", p.LeftHandleY.ToString("F6", culture)),
+                    new XAttribute("rhx", p.RightHandleX.ToString("F6", culture)),
+                    new XAttribute("rhy", p.RightHandleY.ToString("F6", culture))
+                ))
+            )
+        );
     }
 
     public static CurveDocument Import(string xmlText)
@@ -101,6 +141,75 @@ public static class WwiseXmlService
         };
         curve.Points.Clear();
 
+        // Prefer the exact round-trip data this app embeds on export (see
+        // BuildExactPointsExtension). Files from real Wwise, or from an
+        // older version of this tool, won't have this block, so fall back
+        // to reconstructing from <GraphPoint>/shape below.
+        var exactPoints = TryReadExactPointsExtension(root);
+        if (exactPoints != null)
+        {
+            curve.Points.AddRange(exactPoints);
+        }
+        else
+        {
+            ReconstructFromGraphPoints(curve, root, doc);
+        }
+
+        if (curve.Points.Count == 0)
+        {
+            curve.Points.Add(new CurvePoint(0, 0));
+            curve.Points.Add(new CurvePoint(1, 1));
+        }
+
+        doc.Curves.Clear();
+        doc.Curves.Add(curve);
+        return doc;
+    }
+
+    private static List<CurvePoint>? TryReadExactPointsExtension(XElement root)
+    {
+        var pointElements = root.Element("RTPCCurveEditorExtension")?.Element("ExactPoints")?.Elements("Point").ToList();
+        if (pointElements == null || pointElements.Count == 0) return null;
+
+        var culture = CultureInfo.InvariantCulture;
+        var result = new List<CurvePoint>();
+
+        foreach (var el in pointElements)
+        {
+            var x = el.Attribute("x")?.Value;
+            var y = el.Attribute("y")?.Value;
+            var lhx = el.Attribute("lhx")?.Value;
+            var lhy = el.Attribute("lhy")?.Value;
+            var rhx = el.Attribute("rhx")?.Value;
+            var rhy = el.Attribute("rhy")?.Value;
+
+            if (x == null || y == null || lhx == null || lhy == null || rhx == null || rhy == null)
+                return null; // Malformed extension block — fall back to GraphPoints entirely rather than a partial reconstruction.
+
+            if (!double.TryParse(x, NumberStyles.Float, culture, out double px) ||
+                !double.TryParse(y, NumberStyles.Float, culture, out double py) ||
+                !double.TryParse(lhx, NumberStyles.Float, culture, out double plhx) ||
+                !double.TryParse(lhy, NumberStyles.Float, culture, out double plhy) ||
+                !double.TryParse(rhx, NumberStyles.Float, culture, out double prhx) ||
+                !double.TryParse(rhy, NumberStyles.Float, culture, out double prhy))
+            {
+                return null;
+            }
+
+            result.Add(new CurvePoint(Math.Clamp(px, 0.0, 1.0), Math.Clamp(py, 0.0, 1.0))
+            {
+                LeftHandleX = plhx,
+                LeftHandleY = plhy,
+                RightHandleX = prhx,
+                RightHandleY = prhy
+            });
+        }
+
+        return result;
+    }
+
+    private static void ReconstructFromGraphPoints(BezierCurve curve, XElement root, CurveDocument doc)
+    {
         var graphPoints = root.Element("Curve")?.Elements("GraphPoint").ToList()
                           ?? new List<XElement>();
 
@@ -147,16 +256,6 @@ public static class WwiseXmlService
             ApplyShapeHandles(pt, shape, segmentWidth, localSlope);
             curve.Points.Add(pt);
         }
-
-        if (curve.Points.Count == 0)
-        {
-            curve.Points.Add(new CurvePoint(0, 0));
-            curve.Points.Add(new CurvePoint(1, 1));
-        }
-
-        doc.Curves.Clear();
-        doc.Curves.Add(curve);
-        return doc;
     }
 
     private static string GetWwiseShapeName(CurvePoint pt)
