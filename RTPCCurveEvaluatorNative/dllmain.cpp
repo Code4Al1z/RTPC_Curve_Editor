@@ -25,5 +25,5 @@ NATIVE_API double EvaluateCubicBezierYAtX(
     }
 
     double u = 1.0 - t;
-    return u * u * u * p0y + 3 * u * u * t * c0y + 3 * u * t * t * c1x + t * t * t * p1y;
+    return u * u * u * p0y + 3 * u * u * t * c0y + 3 * u * t * t * c1y + t * t * t * p1y;
 }
