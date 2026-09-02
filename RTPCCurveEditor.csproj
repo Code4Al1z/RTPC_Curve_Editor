@@ -24,11 +24,27 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="RTPCCurveEvaluatorNative\RTPCCurveEvaluatorNative.vcxproj" />
+	  <ProjectReference Include="RTPCCurveEvaluatorNative\RTPCCurveEvaluatorNative.vcxproj">
+	    <SetPlatform>Platform=x64</SetPlatform>
+	  </ProjectReference>
 	</ItemGroup>
 
+	<PropertyGroup>
+		<NativeOutputDir>$(MSBuildThisFileDirectory)NativeOutput\</NativeOutputDir>
+		<NativeDllPath>$(NativeOutputDir)RTPCCurveEvaluatorNative.dll</NativeDllPath>
+	</PropertyGroup>
+
+	<Target Name="ForceBuildNativeX64" BeforeTargets="CopyNativeDll;CopyNativeDllToPublish">
+		<MSBuild Projects="RTPCCurveEvaluatorNative\RTPCCurveEvaluatorNative.vcxproj"
+		         Properties="Configuration=$(Configuration);Platform=x64;OutDir=$(NativeOutputDir);IntDir=$(NativeOutputDir)obj\" />
+	</Target>
+
 	<Target Name="CopyNativeDll" AfterTargets="Build">
-		<Copy SourceFiles="$(SolutionDir)x64\$(Configuration)\RTPCCurveEvaluatorNative.dll" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" Condition="Exists('$(SolutionDir)x64\$(Configuration)\RTPCCurveEvaluatorNative.dll')" />
+		<Copy SourceFiles="$(NativeDllPath)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" Condition="Exists('$(NativeDllPath)')" />
+	</Target>
+
+	<Target Name="CopyNativeDllToPublish" AfterTargets="Publish">
+		<Copy SourceFiles="$(NativeDllPath)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="Exists('$(NativeDllPath)')" />
 	</Target>
 	
 </Project>
