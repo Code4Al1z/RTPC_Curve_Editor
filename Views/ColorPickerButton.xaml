@@ -90,7 +90,8 @@
 					</Grid>
 
 					<Button Content="Close" Click="OnCloseClick" HorizontalAlignment="Right"
-                            Padding="10,3" FontSize="10" Cursor="Hand"/>
+                            Style="{StaticResource GhostButton}"
+                            Padding="10,3" FontSize="10"/>
 				</StackPanel>
 			</Border>
 		</Popup>
