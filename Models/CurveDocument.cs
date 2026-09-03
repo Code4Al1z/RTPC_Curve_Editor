@@ -16,12 +16,50 @@ public partial class CurveDocument : ObservableObject
     public double InputMin
     {
         get => _inputMin;
-        set => SetProperty(ref _inputMin, Math.Max(0.0, value)); // Clamp X-axis to >= 0
+        set
+        {
+            double clamped = Math.Max(0.0, value); // Clamp X-axis to >= 0
+            double old = _inputMin;
+            if (SetProperty(ref _inputMin, clamped))
+                RemapCurvesToPreserveRealValues(old, InputMax, OutputMin, OutputMax);
+        }
     }
 
-    [ObservableProperty] private double _inputMax = 100.0;
-    [ObservableProperty] private double _outputMin = -96.0; // Y-axis can be negative (e.g., -96 dB)
-    [ObservableProperty] private double _outputMax = 0.0;
+    private double _inputMax = 100.0;
+    public double InputMax
+    {
+        get => _inputMax;
+        set
+        {
+            double old = _inputMax;
+            if (SetProperty(ref _inputMax, value))
+                RemapCurvesToPreserveRealValues(InputMin, old, OutputMin, OutputMax);
+        }
+    }
+
+    private double _outputMin = -96.0; // Y-axis can be negative (e.g., -96 dB)
+    public double OutputMin
+    {
+        get => _outputMin;
+        set
+        {
+            double old = _outputMin;
+            if (SetProperty(ref _outputMin, value))
+                RemapCurvesToPreserveRealValues(InputMin, InputMax, old, OutputMax);
+        }
+    }
+
+    private double _outputMax = 0.0;
+    public double OutputMax
+    {
+        get => _outputMax;
+        set
+        {
+            double old = _outputMax;
+            if (SetProperty(ref _outputMax, value))
+                RemapCurvesToPreserveRealValues(InputMin, InputMax, OutputMin, old);
+        }
+    }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime ModifiedAt { get; set; } = DateTime.UtcNow;
@@ -29,6 +67,38 @@ public partial class CurveDocument : ObservableObject
 
     /// <summary>The primary (first) curve in the document.</summary>
     public BezierCurve PrimaryCurve => Curves.Count > 0 ? Curves[0] : new BezierCurve();
+
+    private void RemapCurvesToPreserveRealValues(
+        double oldInputMin, double oldInputMax,
+        double oldOutputMin, double oldOutputMax)
+    {
+        double oldInputRange = oldInputMax - oldInputMin;
+        double newInputRange = InputMax - InputMin;
+        double oldOutputRange = oldOutputMax - oldOutputMin;
+        double newOutputRange = OutputMax - OutputMin;
+
+        if (Math.Abs(newInputRange) < 1e-9 || Math.Abs(newOutputRange) < 1e-9) return;
+
+        double scaleX = oldInputRange / newInputRange;
+        double offsetX = (oldInputMin - InputMin) / newInputRange;
+        double scaleY = oldOutputRange / newOutputRange;
+        double offsetY = (oldOutputMin - OutputMin) / newOutputRange;
+
+        foreach (var curve in Curves)
+        {
+            foreach (var pt in curve.Points)
+            {
+                pt.X = Math.Clamp(pt.X * scaleX + offsetX, 0.0, 1.0);
+                pt.Y = Math.Clamp(pt.Y * scaleY + offsetY, 0.0, 1.0);
+                pt.LeftHandleX *= scaleX;
+                pt.LeftHandleY *= scaleY;
+                pt.RightHandleX *= scaleX;
+                pt.RightHandleY *= scaleY;
+            }
+        }
+
+        OnPropertyChanged(nameof(Curves));
+    }
 
     public static CurveDocument CreateDefault()
     {
