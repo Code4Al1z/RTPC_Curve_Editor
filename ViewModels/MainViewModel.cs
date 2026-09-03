@@ -35,15 +35,7 @@ public partial class MainViewModel : ObservableObject
 
     private string? _currentFilePath;
 
-    // Document.PropertyChanged (below) covers document-level properties
-    // (InputMin/Max etc.), but says nothing about an individual BezierCurve's
-    // own properties changing — ColorHex from the new colour picker, IsVisible
-    // from the comparison-curve list's checkbox, etc. Those are bound directly
-    // to the model and never call RaiseCurveChanged() themselves, so without
-    // this, the canvas only picked up the change on whatever the next
-    // unrelated repaint happened to be (e.g. clicking the canvas). Track which
-    // curves we're currently subscribed to so curves can be added/removed
-    // freely without leaking or double-subscribing.
+    // Repaints on any curve's ColorHex/IsVisible/etc changing, not just Document's own properties.
     private readonly HashSet<BezierCurve> _subscribedCurves = new();
 
     public ICollectionView PresetsView { get; }
@@ -58,11 +50,7 @@ public partial class MainViewModel : ObservableObject
         RefreshAllCurves();
         SyncCurveSubscriptions();
 
-        // The [ObservableProperty] field initializer above bypasses the
-        // generated Document property setter, so OnDocumentChanged (below)
-        // never fires for this first document — wire it up explicitly here.
-        // Every later reassignment (NewDocument, OpenAsync) goes through the
-        // real setter and is covered by OnDocumentChanged automatically.
+        // First document bypasses OnDocumentChanged (field init, not the setter) — wire it up here.
         Document.PropertyChanged += (s, e) => RaiseCurveChanged();
 
         PresetsView = CollectionViewSource.GetDefaultView(FilteredPresets);
@@ -72,12 +60,7 @@ public partial class MainViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(CanUndo));
             OnPropertyChanged(nameof(CanRedo));
-            // CommunityToolkit.Mvvm's RelayCommand does NOT hook into
-            // CommandManager.RequerySuggested (that was only true of the old
-            // MvvmLight-style RelayCommand). Without this, neither the Edit menu's
-            // Undo/Redo items nor the Ctrl+Z/Ctrl+Y KeyBindings ever notice that
-            // CanUndo/CanRedo changed, and they stay stuck at whatever they were
-            // when the app started (disabled, since the stack starts empty).
+            // RelayCommand doesn't auto-hook CommandManager — notify explicitly or Undo/Redo stay stuck disabled.
             UndoCommand.NotifyCanExecuteChanged();
             RedoCommand.NotifyCanExecuteChanged();
             IsDirty = true;
@@ -85,25 +68,14 @@ public partial class MainViewModel : ObservableObject
         RefreshPresets();
     }
 
-    // Fires on every Document reassignment after the constructor (NewDocument,
-    // OpenAsync, or any future call site) — resubscribes to the new document's
-    // PropertyChanged (the constructor's subscription only ever pointed at the
-    // very first document, so without this, replacing the document silently
-    // stopped range-change edits from repainting the canvas) and re-syncs
-    // per-curve subscriptions for the new document's curve list.
+    // Resubscribes on every later Document reassignment (New/Open) — constructor only covers the first one.
     partial void OnDocumentChanged(CurveDocument value)
     {
         value.PropertyChanged += (s, e) => RaiseCurveChanged();
         SyncCurveSubscriptions();
     }
 
-    // ── Range fields (ask-first) ─────────────────────────────────────────────
-    //
-    // The Inspector binds to these instead of Document.InputMin/Max/OutputMin/Max
-    // directly, so every edit goes through RequestRangeChange first — which asks
-    // the user how existing points should behave, and whether to proceed at all
-    // if the new range doesn't cover some of them. CurveDocument itself has no
-    // opinion on this and shows no UI; it just applies whichever mode we pick.
+    // ── Range fields (ask-first) — Inspector binds here, not to Document, so edits go through RequestRangeChange ──
 
     public double InputMinField
     {
@@ -209,9 +181,7 @@ public partial class MainViewModel : ObservableObject
             AllCurves.Add(c);
     }
 
-    // Keeps _subscribedCurves in sync with whatever's actually in
-    // Document.Curves right now. Safe to call as often as needed — curves
-    // already subscribed are left alone, so this never double-subscribes.
+    // Syncs _subscribedCurves to Document.Curves — safe to call repeatedly, never double-subscribes.
     private void SyncCurveSubscriptions()
     {
         var current = new HashSet<BezierCurve>(Document.Curves);
@@ -240,14 +210,7 @@ public partial class MainViewModel : ObservableObject
         RaiseCurveChanged();
     }
 
-    // AddCurveCommand/RemoveCurveCommand pass this as their onChanged callback.
-    // Undoing an add (or redoing a remove) can leave ActiveCurve pointing at a
-    // BezierCurve object that's no longer in Document.Curves at all — the
-    // Inspector's curve list (AllCurves) picks that up fine since it's rebuilt
-    // from Document.Curves, but CurveCanvasControl draws VM.ActiveCurve
-    // unconditionally, so the orphaned curve kept rendering forever. Re-check
-    // the invariant every time the curves list changes, rather than patching
-    // each call site that mutates it.
+    // Keeps ActiveCurve valid after undo/redo removes or re-adds curves — canvas draws it unconditionally.
     private void OnCurvesListChanged()
     {
         RefreshAllCurves();
@@ -259,29 +222,11 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    partial void OnDocumentChanged(CurveDocument? oldValue, CurveDocument newValue)
-    {
-        if (oldValue != null)
-            oldValue.PropertyChanged -= OnDocumentPropertyChanged;
-
-        if (newValue != null)
-            newValue.PropertyChanged += OnDocumentPropertyChanged;
-
-        RaiseCurveChanged();
-    }
-
-    private void OnDocumentPropertyChanged(object? sender, PropertyChangedEventArgs e) => RaiseCurveChanged();
-
     // ── Native C++ Evaluation ───────────────────────────────────────────────
 
     [ObservableProperty] private double _nativeTestInput = 0.5;
 
-    // Cached once known. This section calls into RTPCCurveEvaluatorNative.dll
-    // via P/Invoke, which throws (DllNotFoundException / BadImageFormatException
-    // / EntryPointNotFoundException) if the native project wasn't built, or was
-    // built for a different platform than the one the DLL was copied for. That
-    // exception would otherwise come straight out of a data-bound property
-    // getter with nothing in the app to catch it, crashing the app on launch.
+    // Guards the P/Invoke call — a missing/wrong-arch DLL would otherwise crash on launch.
     private bool? _nativeEvaluatorAvailable;
 
     public bool NativeEvaluatorAvailable
@@ -339,8 +284,7 @@ public partial class MainViewModel : ObservableObject
                         return result;
                     }
 
-                    // The DLL was loadable at startup but this specific call
-                    // failed; flip the flag so the UI hides the section too.
+                    // Loadable at startup but this call failed — hide the section too.
                     _nativeEvaluatorAvailable = false;
                     OnPropertyChanged(nameof(NativeEvaluatorAvailable));
                     return 0.0;
@@ -758,25 +702,30 @@ public partial class MainViewModel : ObservableObject
             var xml = File.ReadAllText(dlg.FileName);
             var imported = WwiseXmlService.Import(xml);
             var importedCurve = imported.PrimaryCurve;
+            importedCurve.Name = MakeUniqueCurveName(importedCurve.Name);
 
-            // All curves in a CurveDocument share one InputMin/Max/OutputMin/Max —
-            // comparison curves don't have an independent range of their own. If
-            // the imported file's original range doesn't match the current
-            // workspace, dropping its points in as-is would silently reinterpret
-            // them under the wrong real-world scale, so we require the ranges to
-            // already match rather than guess or auto-convert.
             if (!RangesMatch(imported, Document))
             {
-                Error(
-                    $"Can't import: this file's mapping range " +
-                    $"([{imported.InputMin:0.##}, {imported.InputMax:0.##}] → [{imported.OutputMin:0.##}, {imported.OutputMax:0.##}]) " +
-                    $"doesn't match the current workspace's " +
-                    $"([{Document.InputMin:0.##}, {Document.InputMax:0.##}] → [{Document.OutputMin:0.##}, {Document.OutputMax:0.##}]). " +
-                    $"Match the workspace's RTPC mapping range first, then try importing again.");
-                return;
-            }
+                var choice = AskImportRangeMismatch(imported);
+                if (choice == null) return; // Cancel
 
-            importedCurve.Name = MakeUniqueCurveName(importedCurve.Name);
+                if (choice == ImportRangeChoice.MatchValues)
+                {
+                    // Union of both ranges — expands only if the import doesn't already fit.
+                    double newInputMin = Math.Min(Document.InputMin, imported.InputMin);
+                    double newInputMax = Math.Max(Document.InputMax, imported.InputMax);
+                    double newOutputMin = Math.Min(Document.OutputMin, imported.OutputMin);
+                    double newOutputMax = Math.Max(Document.OutputMax, imported.OutputMax);
+
+                    if (Math.Abs(newInputMin - Document.InputMin) > 1e-9 || Math.Abs(newInputMax - Document.InputMax) > 1e-9)
+                        Document.ApplyInputRange(newInputMin, newInputMax, RangeChangeMode.PreserveRealValues);
+                    if (Math.Abs(newOutputMin - Document.OutputMin) > 1e-9 || Math.Abs(newOutputMax - Document.OutputMax) > 1e-9)
+                        Document.ApplyOutputRange(newOutputMin, newOutputMax, RangeChangeMode.PreserveRealValues);
+
+                    Document.RemapCurveIntoCurrentRange(importedCurve, imported.InputMin, imported.InputMax, imported.OutputMin, imported.OutputMax);
+                }
+                // ShapeOnly: leave points as-is, ignoring the file's original range.
+            }
 
             UndoRedo.Execute(new AddCurveCommand(Document, importedCurve, OnCurvesListChanged));
             ActiveCurve = importedCurve;
@@ -785,6 +734,29 @@ public partial class MainViewModel : ObservableObject
             Status($"Imported '{importedCurve.Name}' as a new comparison curve — {importedCurve.Points.Count} points.");
         }
         catch (Exception ex) { Error($"Import failed: {ex.Message}"); }
+    }
+
+    private enum ImportRangeChoice { MatchValues, ShapeOnly }
+
+    private static ImportRangeChoice? AskImportRangeMismatch(CurveDocument imported)
+    {
+        var result = MessageBox.Show(
+            $"This file's mapping range " +
+            $"([{imported.InputMin:0.##}, {imported.InputMax:0.##}] → [{imported.OutputMin:0.##}, {imported.OutputMax:0.##}]) " +
+            "doesn't match your current workspace's. How should it be imported?\n\n" +
+            "Yes — match its real values (expands your workspace range if the file's range extends beyond it)\n" +
+            "No — fit its shape into your current range as-is (ignores the file's original values)\n" +
+            "Cancel — don't import it",
+            "Range Mismatch",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+
+        return result switch
+        {
+            MessageBoxResult.Yes => ImportRangeChoice.MatchValues,
+            MessageBoxResult.No => ImportRangeChoice.ShapeOnly,
+            _ => null
+        };
     }
 
     private static bool RangesMatch(CurveDocument a, CurveDocument b, double epsilon = 1e-6) =>
@@ -838,9 +810,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (Document.Curves.Count <= 1) { Status("Cannot remove the last curve."); return; }
 
-        // OnCurvesListChanged (passed below) runs synchronously as part of
-        // Execute()/Undo(), so ActiveCurve is already corrected by the time
-        // UndoRedo.Execute returns — no separate fixup needed here.
+        // OnCurvesListChanged runs synchronously — ActiveCurve is already fixed up by here.
         UndoRedo.Execute(new RemoveCurveCommand(Document, curve, OnCurvesListChanged));
         RaiseCurveChanged();
         Status($"Removed {curve.Name}.");

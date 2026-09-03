@@ -2,20 +2,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace RTPCCurveEditor.Models;
 
-/// <summary>How ApplyInputRange/ApplyOutputRange should treat existing points.</summary>
+/// <summary>How Apply*Range should treat existing points.</summary>
 public enum RangeChangeMode
 {
-    /// <summary>Recompute normalized positions so each point's real value stays fixed.</summary>
-    PreserveRealValues,
-    /// <summary>Leave normalized positions untouched — real values shift instead.</summary>
-    KeepPositions
+    PreserveRealValues, // recompute normalized position so real value stays fixed
+    KeepPositions       // leave normalized position untouched — real value shifts
 }
 
-/// <summary>
-/// Root document model matching Wwise's normalized curve architecture.
-/// X-axis (Game Parameter) is non-negative (>= 0), while Y-axis (Audio Value) 
-/// can span negative ranges (e.g. -96 dB to 0 dB).
-/// </summary>
+/// <summary>Root document model matching Wwise's normalized curve architecture (X >= 0, Y can be negative).</summary>
 public partial class CurveDocument : ObservableObject
 {
     [ObservableProperty] private string _title = "Untitled Project";
@@ -25,28 +19,22 @@ public partial class CurveDocument : ObservableObject
     public double InputMin
     {
         get => _inputMin;
-        set => SetProperty(ref _inputMin, Math.Max(0.0, value)); // Clamp X-axis to >= 0
+        set => SetProperty(ref _inputMin, Math.Max(0.0, value)); // clamp X-axis to >= 0
     }
 
     [ObservableProperty] private double _inputMax = 100.0;
-    [ObservableProperty] private double _outputMin = -96.0; // Y-axis can be negative (e.g., -96 dB)
+    [ObservableProperty] private double _outputMin = -96.0;
     [ObservableProperty] private double _outputMax = 0.0;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime ModifiedAt { get; set; } = DateTime.UtcNow;
     public List<BezierCurve> Curves { get; set; } = new();
 
-    /// <summary>The primary (first) curve in the document.</summary>
     public BezierCurve PrimaryCurve => Curves.Count > 0 ? Curves[0] : new BezierCurve();
 
-    // ── Range change (asks-first, model-side half) ──────────────────────────
-    
-    /// <summary>
-    /// Real (not normalized) point values that would fall outside [newMin, newMax]
-    /// under PreserveRealValues mode — empty if the new range covers everything.
-    /// Call before ApplyInputRange(..., PreserveRealValues) so the caller can warn
-    /// the user first.
-    /// </summary>
+    // Model exposes facts + actions only — MainViewModel decides the mode and shows any UI.
+
+    /// <summary>Real point values that would fall outside [newMin, newMax] under PreserveRealValues.</summary>
     public List<double> GetOutOfRangeInputValues(double newMin, double newMax)
     {
         newMin = Math.Max(0.0, newMin);
@@ -81,15 +69,10 @@ public partial class CurveDocument : ObservableObject
         return result;
     }
 
-    /// <summary>
-    /// Applies a new input (X) range. In PreserveRealValues mode, points whose
-    /// real value falls outside [newMin, newMax] are clamped to the nearest
-    /// edge (0 or 1 normalized) — check GetOutOfRangeInputValues first if you
-    /// want to warn about that before calling this.
-    /// </summary>
+    /// <summary>Applies a new input (X) range; PreserveRealValues clamps out-of-range points to the nearest edge.</summary>
     public void ApplyInputRange(double newMin, double newMax, RangeChangeMode mode)
     {
-        newMin = Math.Max(0.0, newMin); // matches InputMin's own clamp
+        newMin = Math.Max(0.0, newMin);
         if (mode == RangeChangeMode.PreserveRealValues)
             RemapAxis(InputMin, InputMax, newMin, newMax, isInput: true);
 
@@ -107,7 +90,24 @@ public partial class CurveDocument : ObservableObject
         OutputMax = newMax;
     }
 
+    /// <summary>Remaps a curve not yet in Curves (e.g. a fresh import) from its own range into this document's current range.</summary>
+    public void RemapCurveIntoCurrentRange(
+        BezierCurve curve,
+        double oldInputMin, double oldInputMax,
+        double oldOutputMin, double oldOutputMax)
+    {
+        RemapCurvePoints(curve, oldInputMin, oldInputMax, InputMin, InputMax, isInput: true);
+        RemapCurvePoints(curve, oldOutputMin, oldOutputMax, OutputMin, OutputMax, isInput: false);
+    }
+
+    // Handles scale the same as position since Bezier curves are affine-invariant — shape stays exact.
     private void RemapAxis(double oldMin, double oldMax, double newMin, double newMax, bool isInput)
+    {
+        foreach (var curve in Curves)
+            RemapCurvePoints(curve, oldMin, oldMax, newMin, newMax, isInput);
+    }
+
+    private static void RemapCurvePoints(BezierCurve curve, double oldMin, double oldMax, double newMin, double newMax, bool isInput)
     {
         double oldRange = oldMax - oldMin;
         double newRange = newMax - newMin;
@@ -116,22 +116,19 @@ public partial class CurveDocument : ObservableObject
         double scale = oldRange / newRange;
         double offset = (oldMin - newMin) / newRange;
 
-        foreach (var curve in Curves)
+        foreach (var pt in curve.Points)
         {
-            foreach (var pt in curve.Points)
+            if (isInput)
             {
-                if (isInput)
-                {
-                    pt.X = Math.Clamp(pt.X * scale + offset, 0.0, 1.0);
-                    pt.LeftHandleX *= scale;
-                    pt.RightHandleX *= scale;
-                }
-                else
-                {
-                    pt.Y = Math.Clamp(pt.Y * scale + offset, 0.0, 1.0);
-                    pt.LeftHandleY *= scale;
-                    pt.RightHandleY *= scale;
-                }
+                pt.X = Math.Clamp(pt.X * scale + offset, 0.0, 1.0);
+                pt.LeftHandleX *= scale;
+                pt.RightHandleX *= scale;
+            }
+            else
+            {
+                pt.Y = Math.Clamp(pt.Y * scale + offset, 0.0, 1.0);
+                pt.LeftHandleY *= scale;
+                pt.RightHandleY *= scale;
             }
         }
     }
