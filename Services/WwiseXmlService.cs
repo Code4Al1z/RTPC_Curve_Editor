@@ -8,7 +8,9 @@ namespace RTPCCurveEditor.Services;
 public static class WwiseXmlService
 {
     /// <summary>
-    /// Export the primary curve to Wwise RTPC XML format.
+    /// Export the given curve (not necessarily doc.PrimaryCurve — pass whichever
+    /// curve should actually be exported, e.g. the currently active one) to
+    /// Wwise RTPC XML format.
     /// Default mode (bakeSampledPoints = true) samples the curve so the shape
     /// reads correctly as plain point data anywhere, including in Wwise itself.
     /// Every export also embeds a private extension block with the exact
@@ -16,9 +18,8 @@ public static class WwiseXmlService
     /// so a file round-tripped back through Import() on this app comes back
     /// exactly as exported — regardless of export mode.
     /// </summary>
-    public static string Export(CurveDocument doc, bool bakeSampledPoints = true, int sampleCount = 32)
+    public static string Export(CurveDocument doc, BezierCurve curve, bool bakeSampledPoints = true, int sampleCount = 32)
     {
-        var curve = doc.PrimaryCurve;
         double inMin = doc.InputMin, inMax = doc.InputMax;
         double outMin = doc.OutputMin, outMax = doc.OutputMax;
 

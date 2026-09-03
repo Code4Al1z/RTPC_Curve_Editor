@@ -580,7 +580,7 @@ public partial class MainViewModel : ObservableObject
         if (dlg.ShowDialog() != true) return;
         try
         {
-            File.WriteAllText(dlg.FileName, WwiseXmlService.Export(Document));
+            File.WriteAllText(dlg.FileName, WwiseXmlService.Export(Document, ActiveCurve));
             Status($"Exported Wwise XML → {Path.GetFileName(dlg.FileName)}");
         }
         catch (Exception ex) { Error($"Export failed: {ex.Message}"); }
