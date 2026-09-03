@@ -97,6 +97,111 @@ public partial class MainViewModel : ObservableObject
         SyncCurveSubscriptions();
     }
 
+    // ── Range fields (ask-first) ─────────────────────────────────────────────
+    //
+    // The Inspector binds to these instead of Document.InputMin/Max/OutputMin/Max
+    // directly, so every edit goes through RequestRangeChange first — which asks
+    // the user how existing points should behave, and whether to proceed at all
+    // if the new range doesn't cover some of them. CurveDocument itself has no
+    // opinion on this and shows no UI; it just applies whichever mode we pick.
+
+    public double InputMinField
+    {
+        get => Document.InputMin;
+        set => RequestRangeChange(isInput: true, value, Document.InputMax);
+    }
+
+    public double InputMaxField
+    {
+        get => Document.InputMax;
+        set => RequestRangeChange(isInput: true, Document.InputMin, value);
+    }
+
+    public double OutputMinField
+    {
+        get => Document.OutputMin;
+        set => RequestRangeChange(isInput: false, value, Document.OutputMax);
+    }
+
+    public double OutputMaxField
+    {
+        get => Document.OutputMax;
+        set => RequestRangeChange(isInput: false, Document.OutputMin, value);
+    }
+
+    private void RequestRangeChange(bool isInput, double newMin, double newMax)
+    {
+        double curMin = isInput ? Document.InputMin : Document.OutputMin;
+        double curMax = isInput ? Document.InputMax : Document.OutputMax;
+        if (Math.Abs(newMin - curMin) < 1e-9 && Math.Abs(newMax - curMax) < 1e-9) return;
+
+        var mode = AskRangeChangeMode();
+        if (mode == null) { NotifyRangeFieldsChanged(); return; } // Cancel — revert the textbox display
+
+        if (mode == RangeChangeMode.PreserveRealValues)
+        {
+            var outOfRange = isInput
+                ? Document.GetOutOfRangeInputValues(newMin, newMax)
+                : Document.GetOutOfRangeOutputValues(newMin, newMax);
+
+            if (outOfRange.Count > 0 && !AskProceedDespiteOutOfRange(outOfRange, isInput))
+            {
+                NotifyRangeFieldsChanged();
+                return; // Reject the whole range change, keep the previous range
+            }
+        }
+
+        if (isInput) Document.ApplyInputRange(newMin, newMax, mode.Value);
+        else Document.ApplyOutputRange(newMin, newMax, mode.Value);
+
+        NotifyRangeFieldsChanged();
+        RaiseCurveChanged();
+        IsDirty = true;
+    }
+
+    private void NotifyRangeFieldsChanged()
+    {
+        OnPropertyChanged(nameof(InputMinField));
+        OnPropertyChanged(nameof(InputMaxField));
+        OnPropertyChanged(nameof(OutputMinField));
+        OnPropertyChanged(nameof(OutputMaxField));
+    }
+
+    private static RangeChangeMode? AskRangeChangeMode()
+    {
+        var result = MessageBox.Show(
+            "The mapping range is changing. What should existing points do?\n\n" +
+            "Yes — keep their real values (the curve rescales to match)\n" +
+            "No — keep their current position (their real values will change)\n" +
+            "Cancel — don't change the range",
+            "Range Changed",
+            MessageBoxButton.YesNoCancel,
+            MessageBoxImage.Question);
+
+        return result switch
+        {
+            MessageBoxResult.Yes => RangeChangeMode.PreserveRealValues,
+            MessageBoxResult.No => RangeChangeMode.KeepPositions,
+            _ => null
+        };
+    }
+
+    private static bool AskProceedDespiteOutOfRange(List<double> outOfRangeValues, bool isInput)
+    {
+        string axis = isInput ? "input" : "output";
+        string values = string.Join(", ", outOfRangeValues.Distinct().OrderBy(v => v).Select(v => v.ToString("0.##")));
+
+        var result = MessageBox.Show(
+            $"The new {axis} range doesn't cover some existing point values ({values}).\n\n" +
+            "Continue and clamp those points to the nearest edge of the new range, " +
+            "or cancel and keep the previous range?",
+            "Range Too Small",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning);
+
+        return result == MessageBoxResult.OK;
+    }
+
     private void RefreshAllCurves()
     {
         AllCurves.Clear();

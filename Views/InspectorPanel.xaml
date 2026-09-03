@@ -70,11 +70,11 @@
 					</Grid.ColumnDefinitions>
 					<StackPanel Grid.Column="0">
 						<Label Content="Input min"/>
-						<TextBox Text="{Binding Document.InputMin, UpdateSourceTrigger=PropertyChanged}"/>
+						<TextBox Text="{Binding InputMinField, UpdateSourceTrigger=LostFocus}"/>
 					</StackPanel>
 					<StackPanel Grid.Column="2">
 						<Label Content="Input max"/>
-						<TextBox Text="{Binding Document.InputMax, UpdateSourceTrigger=PropertyChanged}"/>
+						<TextBox Text="{Binding InputMaxField, UpdateSourceTrigger=LostFocus}"/>
 					</StackPanel>
 				</Grid>
 
@@ -86,11 +86,11 @@
 					</Grid.ColumnDefinitions>
 					<StackPanel Grid.Column="0">
 						<Label Content="Output min"/>
-						<TextBox Text="{Binding Document.OutputMin, UpdateSourceTrigger=PropertyChanged}"/>
+						<TextBox Text="{Binding OutputMinField, UpdateSourceTrigger=LostFocus}"/>
 					</StackPanel>
 					<StackPanel Grid.Column="2">
 						<Label Content="Output max"/>
-						<TextBox Text="{Binding Document.OutputMax, UpdateSourceTrigger=PropertyChanged}"/>
+						<TextBox Text="{Binding OutputMaxField, UpdateSourceTrigger=LostFocus}"/>
 					</StackPanel>
 				</Grid>
 
