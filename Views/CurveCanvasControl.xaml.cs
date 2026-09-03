@@ -416,74 +416,77 @@ public partial class CurveCanvasControl : UserControl
 
         if (e.LeftButton != MouseButtonState.Pressed) return;
 
-        if (VM.SelectedPoint != null && !ctrl)
+        if (VM.ActiveCurve.IsVisible)
         {
-            var pt = VM.SelectedPoint;
-            var rh = ToCanvas(pt.X + pt.RightHandleX, pt.Y + pt.RightHandleY);
-            var lh = ToCanvas(pt.X + pt.LeftHandleX, pt.Y + pt.LeftHandleY);
-            if (SKPoint.Distance(pos, rh) < HitRadius)
+            if (VM.SelectedPoint != null && !ctrl)
             {
-                _draggingHandle = true; _draggingRightHandle = true; _draggingPoint = pt;
-                _dragStartHandleX = pt.RightHandleX; _dragStartHandleY = pt.RightHandleY;
+                var pt = VM.SelectedPoint;
+                var rh = ToCanvas(pt.X + pt.RightHandleX, pt.Y + pt.RightHandleY);
+                var lh = ToCanvas(pt.X + pt.LeftHandleX, pt.Y + pt.LeftHandleY);
+                if (SKPoint.Distance(pos, rh) < HitRadius)
+                {
+                    _draggingHandle = true; _draggingRightHandle = true; _draggingPoint = pt;
+                    _dragStartHandleX = pt.RightHandleX; _dragStartHandleY = pt.RightHandleY;
+                    return;
+                }
+                if (SKPoint.Distance(pos, lh) < HitRadius)
+                {
+                    _draggingHandle = true; _draggingRightHandle = false; _draggingPoint = pt;
+                    _dragStartHandleX = pt.LeftHandleX; _dragStartHandleY = pt.LeftHandleY;
+                    return;
+                }
+            }
+
+            var hitPt = HitPoint(pos, VM.ActiveCurve);
+            if (hitPt != null)
+            {
+                if (ctrl)
+                {
+                    hitPt.IsSelected = !hitPt.IsSelected;
+                    VM.SelectedPoint = hitPt.IsSelected ? hitPt : null;
+                }
+                else
+                {
+                    VM.ClearPointSelection();
+                    hitPt.IsSelected = true;
+                    VM.SelectedPoint = hitPt;
+                    _draggingPoint = hitPt;
+
+                    _dragStartX = hitPt.X;
+                    _dragStartY = hitPt.Y;
+
+                    _dragStartLHX = hitPt.LeftHandleX;
+                    _dragStartLHY = hitPt.LeftHandleY;
+                    _dragStartRHX = hitPt.RightHandleX;
+                    _dragStartRHY = hitPt.RightHandleY;
+                }
+                Redraw();
                 return;
             }
-            if (SKPoint.Distance(pos, lh) < HitRadius)
+
+            var segIdx = HitSegment(pos, VM.ActiveCurve);
+            if (segIdx >= 0)
             {
-                _draggingHandle = true; _draggingRightHandle = false; _draggingPoint = pt;
-                _dragStartHandleX = pt.LeftHandleX; _dragStartHandleY = pt.LeftHandleY;
+                var sorted = VM.ActiveCurve.Points.OrderBy(p => p.X).ToList();
+                var p0 = sorted[segIdx];
+                var p1 = sorted[segIdx + 1];
+
+                if (ctrl)
+                {
+                    bool willSelect = !(p0.IsSelected && p1.IsSelected);
+                    p0.IsSelected = willSelect;
+                    p1.IsSelected = willSelect;
+                }
+                else
+                {
+                    VM.ClearPointSelection();
+                    p0.IsSelected = true;
+                    p1.IsSelected = true;
+                    VM.SelectedPoint = p0;
+                }
+                Redraw();
                 return;
             }
-        }
-
-        var hitPt = HitPoint(pos, VM.ActiveCurve);
-        if (hitPt != null)
-        {
-            if (ctrl)
-            {
-                hitPt.IsSelected = !hitPt.IsSelected;
-                VM.SelectedPoint = hitPt.IsSelected ? hitPt : null;
-            }
-            else
-            {
-                VM.ClearPointSelection();
-                hitPt.IsSelected = true;
-                VM.SelectedPoint = hitPt;
-                _draggingPoint = hitPt;
-
-                _dragStartX = hitPt.X;
-                _dragStartY = hitPt.Y;
-
-                _dragStartLHX = hitPt.LeftHandleX;
-                _dragStartLHY = hitPt.LeftHandleY;
-                _dragStartRHX = hitPt.RightHandleX;
-                _dragStartRHY = hitPt.RightHandleY;
-            }
-            Redraw();
-            return;
-        }
-
-        var segIdx = HitSegment(pos, VM.ActiveCurve);
-        if (segIdx >= 0)
-        {
-            var sorted = VM.ActiveCurve.Points.OrderBy(p => p.X).ToList();
-            var p0 = sorted[segIdx];
-            var p1 = sorted[segIdx + 1];
-
-            if (ctrl)
-            {
-                bool willSelect = !(p0.IsSelected && p1.IsSelected);
-                p0.IsSelected = willSelect;
-                p1.IsSelected = willSelect;
-            }
-            else
-            {
-                VM.ClearPointSelection();
-                p0.IsSelected = true;
-                p1.IsSelected = true;
-                VM.SelectedPoint = p0;
-            }
-            Redraw();
-            return;
         }
 
         foreach (var curve in VM.Document.Curves)

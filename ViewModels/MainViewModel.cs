@@ -124,7 +124,16 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private void OnAnyCurvePropertyChanged(object? sender, PropertyChangedEventArgs e) => RaiseCurveChanged();
+    private void OnAnyCurvePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(BezierCurve.IsVisible) &&
+            sender is BezierCurve curve && !curve.IsVisible &&
+            SelectedPoint != null && curve.Points.Contains(SelectedPoint))
+        {
+            SelectedPoint = null;
+        }
+        RaiseCurveChanged();
+    }
 
     // AddCurveCommand/RemoveCurveCommand pass this as their onChanged callback.
     // Undoing an add (or redoing a remove) can leave ActiveCurve pointing at a
