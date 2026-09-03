@@ -323,6 +323,8 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ClearCurve()
     {
+        if (!ActiveCurve.IsVisible) { Status("Make the curve visible before clearing it."); return; }
+
         var clearedPoints = new List<CurvePoint> { new(0, 0), new(1, 1) };
 
         var tempCurve = new BezierCurve { Points = clearedPoints };
@@ -421,6 +423,7 @@ public partial class MainViewModel : ObservableObject
     private void ApplyPreset()
     {
         if (SelectedPreset == null) return;
+        if (!ActiveCurve.IsVisible) { Status("Make the curve visible before applying a preset."); return; }
 
         var selected = GetSelectedPoints();
         if (selected.Count < 2)

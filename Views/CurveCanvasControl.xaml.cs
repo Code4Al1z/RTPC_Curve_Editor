@@ -632,6 +632,7 @@ public partial class CurveCanvasControl : UserControl
     private void OnMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (VM == null || VM.ActiveCurve == null) return;
+        if (!VM.ActiveCurve.IsVisible) return;
         var pos = ToSKPoint(e.GetPosition(SkiaElement));
 
         var hit = HitPoint(pos, VM.ActiveCurve);
