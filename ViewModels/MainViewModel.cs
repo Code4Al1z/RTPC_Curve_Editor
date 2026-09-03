@@ -723,6 +723,7 @@ public partial class MainViewModel : ObservableObject
                         Document.ApplyOutputRange(newOutputMin, newOutputMax, RangeChangeMode.PreserveRealValues);
 
                     Document.RemapCurveIntoCurrentRange(importedCurve, imported.InputMin, imported.InputMax, imported.OutputMin, imported.OutputMax);
+                    NotifyRangeFieldsChanged();
                 }
                 // ShapeOnly: leave points as-is, ignoring the file's original range.
             }
