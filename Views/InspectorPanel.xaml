@@ -70,11 +70,11 @@
 					</Grid.ColumnDefinitions>
 					<StackPanel Grid.Column="0">
 						<Label Content="Input min"/>
-						<TextBox Text="{Binding InputMinField, UpdateSourceTrigger=LostFocus}"/>
+						<TextBox Text="{Binding InputMinField, UpdateSourceTrigger=LostFocus}" KeyDown="OnRangeFieldKeyDown"/>
 					</StackPanel>
 					<StackPanel Grid.Column="2">
 						<Label Content="Input max"/>
-						<TextBox Text="{Binding InputMaxField, UpdateSourceTrigger=LostFocus}"/>
+						<TextBox Text="{Binding InputMaxField, UpdateSourceTrigger=LostFocus}" KeyDown="OnRangeFieldKeyDown"/>
 					</StackPanel>
 				</Grid>
 
@@ -86,11 +86,11 @@
 					</Grid.ColumnDefinitions>
 					<StackPanel Grid.Column="0">
 						<Label Content="Output min"/>
-						<TextBox Text="{Binding OutputMinField, UpdateSourceTrigger=LostFocus}"/>
+						<TextBox Text="{Binding OutputMinField, UpdateSourceTrigger=LostFocus}" KeyDown="OnRangeFieldKeyDown"/>
 					</StackPanel>
 					<StackPanel Grid.Column="2">
 						<Label Content="Output max"/>
-						<TextBox Text="{Binding OutputMaxField, UpdateSourceTrigger=LostFocus}"/>
+						<TextBox Text="{Binding OutputMaxField, UpdateSourceTrigger=LostFocus}" KeyDown="OnRangeFieldKeyDown"/>
 					</StackPanel>
 				</Grid>
 

@@ -22,4 +22,16 @@ public partial class InspectorPanel : UserControl
             vm.SetActiveCurveCommand.Execute(curve);
         }
     }
+
+    // The range TextBoxes use UpdateSourceTrigger=LostFocus (needed so the
+    // confirm-first dialog fires once per edit, not once per keystroke — see
+    // MainViewModel.RequestRangeChange). That means Enter alone doesn't commit
+    // anything unless focus actually moves away. UpdateSource() commits the
+    // binding directly, so Enter works without faking a focus change.
+    private void OnRangeFieldKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        if (sender is TextBox tb)
+            tb.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+    }
 }
