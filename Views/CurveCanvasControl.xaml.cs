@@ -147,8 +147,11 @@ public partial class CurveCanvasControl : UserControl
         foreach (var curve in VM.Document.Curves.Where(c => c != VM.ActiveCurve && c.IsVisible))
             DrawCurve(canvas, curve, alpha: 60, isActive: false);
 
-        DrawCurve(canvas, VM.ActiveCurve, alpha: 255, isActive: true);
-        DrawPoints(canvas, VM.ActiveCurve);
+        if (VM.ActiveCurve.IsVisible)
+        {
+            DrawCurve(canvas, VM.ActiveCurve, alpha: 255, isActive: true);
+            DrawPoints(canvas, VM.ActiveCurve);
+        }
 
         canvas.Restore();
     }
