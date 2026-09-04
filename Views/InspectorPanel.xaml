@@ -159,6 +159,13 @@
 							Style="{StaticResource GhostButton}" Padding="8,4" FontSize="10"/>
 				</Grid>
 
+				<StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+					<RadioButton Content="Volume" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModeVolume}"
+								 Foreground="#8A88A0" FontSize="10" Margin="0,0,16,0"/>
+					<RadioButton Content="Filter Cutoff" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModeFilter}"
+								 Foreground="#8A88A0" FontSize="10"/>
+				</StackPanel>
+
 				<Border Background="#1A1A24" CornerRadius="4" Padding="8" Margin="0,0,0,4">
 					<Grid>
 						<Grid.ColumnDefinitions>
@@ -172,9 +179,15 @@
 									   FontSize="13" FontWeight="Bold" Foreground="#3B82F6"/>
 						</StackPanel>
 
-						<StackPanel Grid.Column="1">
+						<StackPanel Grid.Column="1" Visibility="{Binding IsPreviewModeVolume, Converter={StaticResource BoolToVis}}">
 							<TextBlock Text="Volume" FontSize="10" Foreground="#8A88A0"/>
 							<TextBlock Text="{Binding PreviewOutputReal, StringFormat={}{0:F1} dB}"
+									   FontSize="13" FontWeight="Bold" Foreground="#10B981"/>
+						</StackPanel>
+
+						<StackPanel Grid.Column="1" Visibility="{Binding IsPreviewModeFilter, Converter={StaticResource BoolToVis}}">
+							<TextBlock Text="Cutoff" FontSize="10" Foreground="#8A88A0"/>
+							<TextBlock Text="{Binding PreviewFilterCutoffHz, StringFormat={}{0:F0} Hz}"
 									   FontSize="13" FontWeight="Bold" Foreground="#10B981"/>
 						</StackPanel>
 					</Grid>

@@ -58,7 +58,12 @@ public partial class MainViewModel : ObservableObject
             if (e.PropertyName == nameof(CurveDocument.WwiseRtpcName)) OnPropertyChanged(nameof(PreviewInputLabel));
         };
 
-        CurveChanged += () => { OnPropertyChanged(nameof(PreviewOutputReal)); UpdatePreviewVolume(); };
+        CurveChanged += () =>
+        {
+            OnPropertyChanged(nameof(PreviewOutputReal));
+            OnPropertyChanged(nameof(PreviewFilterCutoffHz));
+            UpdatePreviewParameter();
+        };
         _previewTimer.Tick += OnPreviewTimerTick;
 
         PresetsView = CollectionViewSource.GetDefaultView(FilteredPresets);
@@ -239,6 +244,9 @@ public partial class MainViewModel : ObservableObject
     // Independent of NativeEvaluatorAvailable on purpose — a missing native
     // DLL shouldn't take this feature down with it.
 
+    private enum PreviewMode { Volume, FilterCutoff }
+    private PreviewMode _previewMode = PreviewMode.Volume;
+
     [ObservableProperty] private double _previewInputValue = 0.5;
     [ObservableProperty] private string? _previewFileName;
     [ObservableProperty] private bool _isPreviewLoaded;
@@ -250,8 +258,47 @@ public partial class MainViewModel : ObservableObject
     private AudioPreviewService? _audioPreview;
     private readonly DispatcherTimer _previewTimer = new() { Interval = TimeSpan.FromMilliseconds(50) };
 
+    // Standard-ish audible cutoff range for the filter preview — independent of
+    // OutputMin/Max, which represents whatever real unit THIS curve is authored
+    // for (usually dB). Forcing the filter to reuse that range would mean
+    // reconfiguring your actual authored range just to test this mode.
+    private const double FilterMinHz = 100.0;
+    private const double FilterMaxHz = 20000.0;
+
+    public bool IsPreviewModeVolume
+    {
+        get => _previewMode == PreviewMode.Volume;
+        set { if (value) SetPreviewMode(PreviewMode.Volume); }
+    }
+
+    public bool IsPreviewModeFilter
+    {
+        get => _previewMode == PreviewMode.FilterCutoff;
+        set { if (value) SetPreviewMode(PreviewMode.FilterCutoff); }
+    }
+
+    private void SetPreviewMode(PreviewMode mode)
+    {
+        if (_previewMode == mode) return;
+        _previewMode = mode;
+        OnPropertyChanged(nameof(IsPreviewModeVolume));
+        OnPropertyChanged(nameof(IsPreviewModeFilter));
+        UpdatePreviewParameter();
+    }
+
     public double PreviewOutputReal =>
         Document.OutputMin + (ActiveCurve?.Sample(Math.Clamp(PreviewInputValue, 0.0, 1.0)) ?? 0.0) * (Document.OutputMax - Document.OutputMin);
+
+    // Log-scale, not linear — cutoff frequency perception is logarithmic.
+    public double PreviewFilterCutoffHz
+    {
+        get
+        {
+            double normY = Math.Clamp(ActiveCurve?.Sample(Math.Clamp(PreviewInputValue, 0.0, 1.0)) ?? 1.0, 0.0, 1.0);
+            double logMin = Math.Log(FilterMinHz), logMax = Math.Log(FilterMaxHz);
+            return Math.Exp(logMin + normY * (logMax - logMin));
+        }
+    }
 
     public double PreviewInputReal =>
         Document.InputMin + Math.Clamp(PreviewInputValue, 0.0, 1.0) * (Document.InputMax - Document.InputMin);
@@ -272,16 +319,27 @@ public partial class MainViewModel : ObservableObject
     partial void OnPreviewInputValueChanged(double value)
     {
         OnPropertyChanged(nameof(PreviewOutputReal));
+        OnPropertyChanged(nameof(PreviewFilterCutoffHz));
         OnPropertyChanged(nameof(PreviewInputReal));
-        UpdatePreviewVolume();
+        UpdatePreviewParameter();
     }
 
-    // dB → linear gain, clamped as a safety margin against extreme OutputMax values.
-    private void UpdatePreviewVolume()
+    private void UpdatePreviewParameter()
     {
-        if (_audioPreview == null || !IsPreviewPlaying) return;
-        float gain = (float)Math.Clamp(Math.Pow(10, PreviewOutputReal / 20.0), 0.0, 4.0);
-        _audioPreview.SetVolume(gain);
+        if (_audioPreview == null) return;
+        _audioPreview.SetFilterEnabled(_previewMode == PreviewMode.FilterCutoff);
+        if (!IsPreviewPlaying) return;
+
+        switch (_previewMode)
+        {
+            case PreviewMode.Volume:
+                _audioPreview.SetVolume((float)Math.Clamp(Math.Pow(10, PreviewOutputReal / 20.0), 0.0, 4.0));
+                break;
+            case PreviewMode.FilterCutoff:
+                _audioPreview.SetVolume(1.0f); // only the filter should change in this mode
+                _audioPreview.SetFilterCutoffHz((float)PreviewFilterCutoffHz);
+                break;
+        }
     }
 
     [RelayCommand]
@@ -329,7 +387,7 @@ public partial class MainViewModel : ObservableObject
         {
             _audioPreview.Play();
             IsPreviewPlaying = true;
-            UpdatePreviewVolume();
+            UpdatePreviewParameter();
             _previewTimer.Start();
         }
     }
