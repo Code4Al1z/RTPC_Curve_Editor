@@ -52,7 +52,11 @@ public partial class MainViewModel : ObservableObject
         SyncCurveSubscriptions();
 
         // First document bypasses OnDocumentChanged (field init, not the setter) — wire it up here.
-        Document.PropertyChanged += (s, e) => RaiseCurveChanged();
+        Document.PropertyChanged += (s, e) =>
+        {
+            RaiseCurveChanged();
+            if (e.PropertyName == nameof(CurveDocument.WwiseRtpcName)) OnPropertyChanged(nameof(PreviewInputLabel));
+        };
 
         CurveChanged += () => { OnPropertyChanged(nameof(PreviewOutputReal)); UpdatePreviewVolume(); };
         _previewTimer.Tick += OnPreviewTimerTick;
@@ -75,8 +79,13 @@ public partial class MainViewModel : ObservableObject
     // Resubscribes on every later Document reassignment (New/Open) — constructor only covers the first one.
     partial void OnDocumentChanged(CurveDocument value)
     {
-        value.PropertyChanged += (s, e) => RaiseCurveChanged();
+        value.PropertyChanged += (s, e) =>
+        {
+            RaiseCurveChanged();
+            if (e.PropertyName == nameof(CurveDocument.WwiseRtpcName)) OnPropertyChanged(nameof(PreviewInputLabel));
+        };
         SyncCurveSubscriptions();
+        OnPropertyChanged(nameof(PreviewInputLabel));
     }
 
     // ── Range fields (ask-first) — Inspector binds here, not to Document, so edits go through RequestRangeChange ──
@@ -246,6 +255,11 @@ public partial class MainViewModel : ObservableObject
 
     public double PreviewInputReal =>
         Document.InputMin + Math.Clamp(PreviewInputValue, 0.0, 1.0) * (Document.InputMax - Document.InputMin);
+
+    // Falls back to a generic label since InputMin/Max can represent any Game
+    // Parameter (distance, health, speed, etc.), not just distance.
+    public string PreviewInputLabel =>
+        string.IsNullOrWhiteSpace(Document.WwiseRtpcName) ? "Input value" : Document.WwiseRtpcName;
 
     public string PreviewTimeDisplay => $"{FormatPreviewTime(PreviewPositionSeconds)} / {FormatPreviewTime(PreviewDurationSeconds)}";
 

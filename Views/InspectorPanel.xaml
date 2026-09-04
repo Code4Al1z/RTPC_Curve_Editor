@@ -167,7 +167,7 @@
 						</Grid.ColumnDefinitions>
 
 						<StackPanel Grid.Column="0">
-							<TextBlock Text="Distance" FontSize="10" Foreground="#8A88A0"/>
+							<TextBlock Text="{Binding PreviewInputLabel}" FontSize="10" Foreground="#8A88A0"/>
 							<TextBlock Text="{Binding PreviewInputReal, StringFormat={}{0:F1}}"
 									   FontSize="13" FontWeight="Bold" Foreground="#3B82F6"/>
 						</StackPanel>
