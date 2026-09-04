@@ -21,19 +21,23 @@
 		<PackageReference Include="SkiaSharp" Version="3.119.2" />
 		<PackageReference Include="SkiaSharp.Views.WPF" Version="3.119.2" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="NAudio" Version="2.2.1" />
 	</ItemGroup>
 
 	<ItemGroup>
+	  <!-- SetPlatform is the metadata MSBuild reads — a bare <Platform> element is ignored. -->
 	  <ProjectReference Include="RTPCCurveEvaluatorNative\RTPCCurveEvaluatorNative.vcxproj">
 	    <SetPlatform>Platform=x64</SetPlatform>
 	  </ProjectReference>
 	</ItemGroup>
 
+	<!-- No explicit OutDir here, so default output location varies by how it's invoked — force one fixed path. -->
 	<PropertyGroup>
 		<NativeOutputDir>$(MSBuildThisFileDirectory)NativeOutput\</NativeOutputDir>
 		<NativeDllPath>$(NativeOutputDir)RTPCCurveEvaluatorNative.dll</NativeDllPath>
 	</PropertyGroup>
 
+	<!-- SetPlatform negotiation is unreliable for an SDK project referencing a vcxproj — force it directly instead. -->
 	<Target Name="ForceBuildNativeX64" BeforeTargets="CopyNativeDll;CopyNativeDllToPublish">
 		<MSBuild Projects="RTPCCurveEvaluatorNative\RTPCCurveEvaluatorNative.vcxproj"
 		         Properties="Configuration=$(Configuration);Platform=x64;OutDir=$(NativeOutputDir);IntDir=$(NativeOutputDir)obj\" />
@@ -43,6 +47,7 @@
 		<Copy SourceFiles="$(NativeDllPath)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" Condition="Exists('$(NativeDllPath)')" />
 	</Target>
 
+	<!-- Publish uses its own $(PublishDir), separate from $(TargetDir) — needs its own copy step too. -->
 	<Target Name="CopyNativeDllToPublish" AfterTargets="Publish">
 		<Copy SourceFiles="$(NativeDllPath)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="Exists('$(NativeDllPath)')" />
 	</Target>

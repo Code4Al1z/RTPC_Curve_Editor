@@ -141,6 +141,44 @@
 					</Border>
 				</StackPanel>
 
+				<Separator/>
+
+				<!-- Section: Audio Preview -->
+				<TextBlock Text="AUDIO PREVIEW" FontSize="10" FontWeight="SemiBold"
+						   Foreground="#7F77DD" Margin="0,10,0,8"/>
+
+				<Grid Margin="0,0,0,8">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+					<TextBlock Grid.Column="0" Text="{Binding PreviewFileName, TargetNullValue='No file loaded'}"
+							   FontSize="10" Foreground="#8A88A0" VerticalAlignment="Center"
+							   TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+					<Button Grid.Column="1" Content="Load..." Command="{Binding LoadPreviewAudioCommand}"
+							Style="{StaticResource GhostButton}" Padding="8,4" FontSize="10"/>
+				</Grid>
+
+				<DockPanel Margin="0,0,0,4">
+					<Label Content="Input value" Padding="0" VerticalAlignment="Center"/>
+					<TextBlock Text="{Binding PreviewOutputReal, StringFormat={}{0:F1} dB}"
+							   Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold"
+							   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+				</DockPanel>
+
+				<Slider Minimum="0.0" Maximum="1.0"
+						Value="{Binding PreviewInputValue, Mode=TwoWay}"
+						TickFrequency="0.01" IsSnapToTickEnabled="False"
+						Margin="0,4,0,8"/>
+
+				<Button Content="▶ Play" Command="{Binding TogglePreviewPlaybackCommand}"
+						IsEnabled="{Binding IsPreviewLoaded}"
+						Visibility="{Binding IsPreviewPlaying, Converter={StaticResource InverseBoolToVis}}"
+						Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,0,0,12"/>
+				<Button Content="■ Stop" Command="{Binding TogglePreviewPlaybackCommand}"
+						Visibility="{Binding IsPreviewPlaying, Converter={StaticResource BoolToVis}}"
+						Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,0,0,12"/>
+
 				<!-- Section: Comparison curves -->
 				<TextBlock Text="COMPARISON CURVES" FontSize="10" FontWeight="SemiBold"
 						   Foreground="#4A4860" Margin="0,10,0,8"/>

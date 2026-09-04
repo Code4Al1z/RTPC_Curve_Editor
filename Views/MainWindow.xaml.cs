@@ -21,6 +21,7 @@ public partial class MainWindow : Window
         {
             if (!VM.ConfirmDiscard()) e.Cancel = true;
         };
+        Closed += (_, _) => VM.DisposePreviewAudio();
 
         // Delete key removes selected point (unless user is typing in a TextBox)
         KeyDown += (_, e) =>

@@ -53,6 +53,8 @@ public partial class MainViewModel : ObservableObject
         // First document bypasses OnDocumentChanged (field init, not the setter) — wire it up here.
         Document.PropertyChanged += (s, e) => RaiseCurveChanged();
 
+        CurveChanged += () => { OnPropertyChanged(nameof(PreviewOutputReal)); UpdatePreviewVolume(); };
+
         PresetsView = CollectionViewSource.GetDefaultView(FilteredPresets);
         PresetsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CurvePreset.Category)));
 
@@ -221,6 +223,80 @@ public partial class MainViewModel : ObservableObject
             SelectedPoint = null;
         }
     }
+
+    // ── Audio Preview ─────────────────────────────────────────────────────
+    // Independent of NativeEvaluatorAvailable on purpose — a missing native
+    // DLL shouldn't take this feature down with it.
+
+    [ObservableProperty] private double _previewInputValue = 0.5;
+    [ObservableProperty] private string? _previewFileName;
+    [ObservableProperty] private bool _isPreviewLoaded;
+    [ObservableProperty] private bool _isPreviewPlaying;
+
+    private AudioPreviewService? _audioPreview;
+
+    public double PreviewOutputReal =>
+        Document.OutputMin + (ActiveCurve?.Sample(Math.Clamp(PreviewInputValue, 0.0, 1.0)) ?? 0.0) * (Document.OutputMax - Document.OutputMin);
+
+    partial void OnPreviewInputValueChanged(double value)
+    {
+        OnPropertyChanged(nameof(PreviewOutputReal));
+        UpdatePreviewVolume();
+    }
+
+    // dB → linear gain, clamped as a safety margin against extreme OutputMax values.
+    private void UpdatePreviewVolume()
+    {
+        if (_audioPreview == null || !IsPreviewPlaying) return;
+        float gain = (float)Math.Clamp(Math.Pow(10, PreviewOutputReal / 20.0), 0.0, 4.0);
+        _audioPreview.SetVolume(gain);
+    }
+
+    [RelayCommand]
+    private void LoadPreviewAudio()
+    {
+        var dlg = new OpenFileDialog
+        {
+            Filter = "Audio files (*.wav;*.mp3)|*.wav;*.mp3|All files (*.*)|*.*",
+            Title = "Load preview audio"
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            _audioPreview?.Dispose();
+            _audioPreview = new AudioPreviewService(dlg.FileName);
+            PreviewFileName = Path.GetFileName(dlg.FileName);
+            IsPreviewLoaded = true;
+            IsPreviewPlaying = false;
+            Status($"Loaded preview audio: {PreviewFileName}");
+        }
+        catch (Exception ex)
+        {
+            Error($"Couldn't load audio: {ex.Message}");
+            IsPreviewLoaded = false;
+        }
+    }
+
+    [RelayCommand]
+    private void TogglePreviewPlayback()
+    {
+        if (_audioPreview == null) return;
+
+        if (IsPreviewPlaying)
+        {
+            _audioPreview.Stop();
+            IsPreviewPlaying = false;
+        }
+        else
+        {
+            _audioPreview.Play();
+            IsPreviewPlaying = true;
+            UpdatePreviewVolume();
+        }
+    }
+
+    public void DisposePreviewAudio() => _audioPreview?.Dispose();
 
     // ── Native C++ Evaluation ───────────────────────────────────────────────
 
