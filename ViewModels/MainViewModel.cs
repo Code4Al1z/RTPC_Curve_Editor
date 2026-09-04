@@ -244,6 +244,9 @@ public partial class MainViewModel : ObservableObject
     public double PreviewOutputReal =>
         Document.OutputMin + (ActiveCurve?.Sample(Math.Clamp(PreviewInputValue, 0.0, 1.0)) ?? 0.0) * (Document.OutputMax - Document.OutputMin);
 
+    public double PreviewInputReal =>
+        Document.InputMin + Math.Clamp(PreviewInputValue, 0.0, 1.0) * (Document.InputMax - Document.InputMin);
+
     public string PreviewTimeDisplay => $"{FormatPreviewTime(PreviewPositionSeconds)} / {FormatPreviewTime(PreviewDurationSeconds)}";
 
     private static string FormatPreviewTime(double totalSeconds)
@@ -255,6 +258,7 @@ public partial class MainViewModel : ObservableObject
     partial void OnPreviewInputValueChanged(double value)
     {
         OnPropertyChanged(nameof(PreviewOutputReal));
+        OnPropertyChanged(nameof(PreviewInputReal));
         UpdatePreviewVolume();
     }
 

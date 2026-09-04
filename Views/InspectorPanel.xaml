@@ -159,12 +159,26 @@
 							Style="{StaticResource GhostButton}" Padding="8,4" FontSize="10"/>
 				</Grid>
 
-				<DockPanel Margin="0,0,0,4">
-					<Label Content="Input value" Padding="0" VerticalAlignment="Center"/>
-					<TextBlock Text="{Binding PreviewOutputReal, StringFormat={}{0:F1} dB}"
-							   Foreground="#FFFFFF" FontSize="11" FontWeight="SemiBold"
-							   HorizontalAlignment="Right" VerticalAlignment="Center"/>
-				</DockPanel>
+				<Border Background="#1A1A24" CornerRadius="4" Padding="8" Margin="0,0,0,4">
+					<Grid>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="*"/>
+							<ColumnDefinition Width="*"/>
+						</Grid.ColumnDefinitions>
+
+						<StackPanel Grid.Column="0">
+							<TextBlock Text="Distance" FontSize="10" Foreground="#8A88A0"/>
+							<TextBlock Text="{Binding PreviewInputReal, StringFormat={}{0:F1}}"
+									   FontSize="13" FontWeight="Bold" Foreground="#3B82F6"/>
+						</StackPanel>
+
+						<StackPanel Grid.Column="1">
+							<TextBlock Text="Volume" FontSize="10" Foreground="#8A88A0"/>
+							<TextBlock Text="{Binding PreviewOutputReal, StringFormat={}{0:F1} dB}"
+									   FontSize="13" FontWeight="Bold" Foreground="#10B981"/>
+						</StackPanel>
+					</Grid>
+				</Border>
 
 				<Slider Minimum="0.0" Maximum="1.0"
 						Value="{Binding PreviewInputValue, Mode=TwoWay}"
