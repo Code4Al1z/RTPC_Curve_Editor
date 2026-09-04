@@ -12,6 +12,7 @@ using RTPCCurveEditor.Native;
 using RTPCCurveEditor.Presets;
 using RTPCCurveEditor.Services;
 using System.IO;
+using System.Windows.Threading;
 
 namespace RTPCCurveEditor.ViewModels;
 
@@ -54,6 +55,7 @@ public partial class MainViewModel : ObservableObject
         Document.PropertyChanged += (s, e) => RaiseCurveChanged();
 
         CurveChanged += () => { OnPropertyChanged(nameof(PreviewOutputReal)); UpdatePreviewVolume(); };
+        _previewTimer.Tick += OnPreviewTimerTick;
 
         PresetsView = CollectionViewSource.GetDefaultView(FilteredPresets);
         PresetsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CurvePreset.Category)));
@@ -232,11 +234,23 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string? _previewFileName;
     [ObservableProperty] private bool _isPreviewLoaded;
     [ObservableProperty] private bool _isPreviewPlaying;
+    [ObservableProperty] private bool _isPreviewLooping;
+    [ObservableProperty] private double _previewPositionSeconds;
+    [ObservableProperty] private double _previewDurationSeconds;
 
     private AudioPreviewService? _audioPreview;
+    private readonly DispatcherTimer _previewTimer = new() { Interval = TimeSpan.FromMilliseconds(50) };
 
     public double PreviewOutputReal =>
         Document.OutputMin + (ActiveCurve?.Sample(Math.Clamp(PreviewInputValue, 0.0, 1.0)) ?? 0.0) * (Document.OutputMax - Document.OutputMin);
+
+    public string PreviewTimeDisplay => $"{FormatPreviewTime(PreviewPositionSeconds)} / {FormatPreviewTime(PreviewDurationSeconds)}";
+
+    private static string FormatPreviewTime(double totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+        return ts.Hours > 0 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"m\:ss");
+    }
 
     partial void OnPreviewInputValueChanged(double value)
     {
@@ -264,9 +278,15 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
+            _previewTimer.Stop();
             _audioPreview?.Dispose();
             _audioPreview = new AudioPreviewService(dlg.FileName);
+            _audioPreview.PlaybackEnded += OnPreviewPlaybackEnded;
+
             PreviewFileName = Path.GetFileName(dlg.FileName);
+            PreviewDurationSeconds = _audioPreview.Duration.TotalSeconds;
+            PreviewPositionSeconds = 0;
+            OnPropertyChanged(nameof(PreviewTimeDisplay));
             IsPreviewLoaded = true;
             IsPreviewPlaying = false;
             Status($"Loaded preview audio: {PreviewFileName}");
@@ -285,18 +305,47 @@ public partial class MainViewModel : ObservableObject
 
         if (IsPreviewPlaying)
         {
-            _audioPreview.Stop();
-            IsPreviewPlaying = false;
+            _audioPreview.Stop(); // IsPreviewPlaying resets via OnPreviewPlaybackEnded, not here
         }
         else
         {
             _audioPreview.Play();
             IsPreviewPlaying = true;
             UpdatePreviewVolume();
+            _previewTimer.Start();
         }
     }
 
-    public void DisposePreviewAudio() => _audioPreview?.Dispose();
+    // Fires on NAudio's playback thread — must marshal to the UI thread before touching bound properties.
+    private void OnPreviewPlaybackEnded(bool wasManual)
+    {
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            if (!wasManual && IsPreviewLooping && _audioPreview != null)
+            {
+                _audioPreview.Play(); // loop: restart rather than stop
+                return;
+            }
+
+            _previewTimer.Stop();
+            IsPreviewPlaying = false;
+            PreviewPositionSeconds = 0;
+            OnPropertyChanged(nameof(PreviewTimeDisplay));
+        });
+    }
+
+    private void OnPreviewTimerTick(object? sender, EventArgs e)
+    {
+        if (_audioPreview == null) return;
+        PreviewPositionSeconds = _audioPreview.Position.TotalSeconds;
+        OnPropertyChanged(nameof(PreviewTimeDisplay));
+    }
+
+    public void DisposePreviewAudio()
+    {
+        _previewTimer.Stop();
+        _audioPreview?.Dispose();
+    }
 
     // ── Native C++ Evaluation ───────────────────────────────────────────────
 

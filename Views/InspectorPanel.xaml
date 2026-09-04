@@ -171,6 +171,30 @@
 						TickFrequency="0.01" IsSnapToTickEnabled="False"
 						Margin="0,4,0,8"/>
 
+				<ProgressBar Height="6" Minimum="0" Maximum="{Binding PreviewDurationSeconds}"
+							 Value="{Binding PreviewPositionSeconds}" Margin="0,0,0,4">
+					<ProgressBar.Template>
+						<ControlTemplate TargetType="ProgressBar">
+							<Border Background="#1A1A24" CornerRadius="3">
+								<Grid>
+									<Rectangle x:Name="PART_Track" Fill="Transparent"/>
+									<Rectangle x:Name="PART_Indicator" Fill="#7F77DD" HorizontalAlignment="Left" RadiusX="3" RadiusY="3"/>
+								</Grid>
+							</Border>
+						</ControlTemplate>
+					</ProgressBar.Template>
+				</ProgressBar>
+
+				<Grid Margin="0,0,0,8">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+					<TextBlock Grid.Column="0" Text="{Binding PreviewTimeDisplay}" FontSize="10" Foreground="#8A88A0"/>
+					<CheckBox Grid.Column="1" Content="Loop" IsChecked="{Binding IsPreviewLooping}"
+							   Foreground="#8A88A0" FontSize="10" VerticalAlignment="Center"/>
+				</Grid>
+
 				<Button Content="▶ Play" Command="{Binding TogglePreviewPlaybackCommand}"
 						IsEnabled="{Binding IsPreviewLoaded}"
 						Visibility="{Binding IsPreviewPlaying, Converter={StaticResource InverseBoolToVis}}"
