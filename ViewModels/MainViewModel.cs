@@ -62,6 +62,7 @@ public partial class MainViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(PreviewOutputReal));
             OnPropertyChanged(nameof(PreviewFilterCutoffHz));
+            OnPropertyChanged(nameof(PreviewPitchSemitones));
             UpdatePreviewParameter();
         };
         _previewTimer.Tick += OnPreviewTimerTick;
@@ -244,7 +245,7 @@ public partial class MainViewModel : ObservableObject
     // Independent of NativeEvaluatorAvailable on purpose — a missing native
     // DLL shouldn't take this feature down with it.
 
-    private enum PreviewMode { Volume, FilterCutoff }
+    private enum PreviewMode { Volume, FilterCutoff, Pitch }
     private PreviewMode _previewMode = PreviewMode.Volume;
 
     [ObservableProperty] private double _previewInputValue = 0.5;
@@ -265,6 +266,13 @@ public partial class MainViewModel : ObservableObject
     private const double FilterMinHz = 100.0;
     private const double FilterMaxHz = 20000.0;
 
+    // Rate-based only (speed and pitch move together, like a sped-up record) —
+    // true independent pitch-shifting needs a phase vocoder or similar, out of
+    // scope here. ±1 octave, mapped in semitones since pitch perception is
+    // logarithmic in frequency, not linear.
+    private const double PitchMinSemitones = -12.0;
+    private const double PitchMaxSemitones = 12.0;
+
     public bool IsPreviewModeVolume
     {
         get => _previewMode == PreviewMode.Volume;
@@ -277,12 +285,19 @@ public partial class MainViewModel : ObservableObject
         set { if (value) SetPreviewMode(PreviewMode.FilterCutoff); }
     }
 
+    public bool IsPreviewModePitch
+    {
+        get => _previewMode == PreviewMode.Pitch;
+        set { if (value) SetPreviewMode(PreviewMode.Pitch); }
+    }
+
     private void SetPreviewMode(PreviewMode mode)
     {
         if (_previewMode == mode) return;
         _previewMode = mode;
         OnPropertyChanged(nameof(IsPreviewModeVolume));
         OnPropertyChanged(nameof(IsPreviewModeFilter));
+        OnPropertyChanged(nameof(IsPreviewModePitch));
         UpdatePreviewParameter();
     }
 
@@ -299,6 +314,17 @@ public partial class MainViewModel : ObservableObject
             return Math.Exp(logMin + normY * (logMax - logMin));
         }
     }
+
+    public double PreviewPitchSemitones
+    {
+        get
+        {
+            double normY = Math.Clamp(ActiveCurve?.Sample(Math.Clamp(PreviewInputValue, 0.0, 1.0)) ?? 0.5, 0.0, 1.0);
+            return PitchMinSemitones + normY * (PitchMaxSemitones - PitchMinSemitones);
+        }
+    }
+
+    private float PreviewPitchRate => (float)Math.Pow(2.0, PreviewPitchSemitones / 12.0);
 
     public double PreviewInputReal =>
         Document.InputMin + Math.Clamp(PreviewInputValue, 0.0, 1.0) * (Document.InputMax - Document.InputMin);
@@ -320,6 +346,7 @@ public partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PreviewOutputReal));
         OnPropertyChanged(nameof(PreviewFilterCutoffHz));
+        OnPropertyChanged(nameof(PreviewPitchSemitones));
         OnPropertyChanged(nameof(PreviewInputReal));
         UpdatePreviewParameter();
     }
@@ -333,11 +360,17 @@ public partial class MainViewModel : ObservableObject
         switch (_previewMode)
         {
             case PreviewMode.Volume:
+                _audioPreview.SetPlaybackRate(1.0f);
                 _audioPreview.SetVolume((float)Math.Clamp(Math.Pow(10, PreviewOutputReal / 20.0), 0.0, 4.0));
                 break;
             case PreviewMode.FilterCutoff:
+                _audioPreview.SetPlaybackRate(1.0f);
                 _audioPreview.SetVolume(1.0f); // only the filter should change in this mode
                 _audioPreview.SetFilterCutoffHz((float)PreviewFilterCutoffHz);
+                break;
+            case PreviewMode.Pitch:
+                _audioPreview.SetVolume(1.0f); // only the rate should change in this mode
+                _audioPreview.SetPlaybackRate(PreviewPitchRate);
                 break;
         }
     }
