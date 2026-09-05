@@ -159,14 +159,14 @@
 							Style="{StaticResource GhostButton}" Padding="8,4" FontSize="10"/>
 				</Grid>
 
-				<StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+				<WrapPanel Margin="0,0,0,8">
 					<RadioButton Content="Volume" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModeVolume}"
-								 Foreground="#8A88A0" FontSize="10" Margin="0,0,16,0"/>
+								 Foreground="#8A88A0" FontSize="10" Margin="0,0,16,4"/>
 					<RadioButton Content="Filter Cutoff" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModeFilter}"
-								 Foreground="#8A88A0" FontSize="10" Margin="0,0,16,0"/>
+								 Foreground="#8A88A0" FontSize="10" Margin="0,0,16,4"/>
 					<RadioButton Content="Pitch (rate)" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModePitch}"
-								 Foreground="#8A88A0" FontSize="10"/>
-				</StackPanel>
+								 Foreground="#8A88A0" FontSize="10" Margin="0,0,0,4"/>
+				</WrapPanel>
 
 				<Border Background="#1A1A24" CornerRadius="4" Padding="8" Margin="0,0,0,4">
 					<Grid>
