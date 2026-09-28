@@ -124,7 +124,7 @@ public static class PresetLibrary
             Name        = "Equal-Power Crossfade (in)",
             Category    = "Psychoacoustic",
             Description = "Quarter-sine crossfade curve maintaining constant RMS power.",
-            Points      = TwoPoint(0, 0, 1, 1, 0.38, 0.0, 0.2, 0.38)
+            Points      = TwoPoint(0, 0, 1, 1, 0.333, 0.5236, 0.333, 0.0)
         },
 
         new CurvePreset
