@@ -49,16 +49,16 @@ public static class PresetLibrary
         {
             Name        = "Sine (Constant Power Fade In)",
             Category    = "Wwise",
-            Description = "sin²(x·π/2) power-preserving fade in.",
-            Points      = TwoPoint(0, 0, 1, 1, 0.4, 0.0, 0.15, 0.35)
+            Description = "sin(x·π/2) power-preserving fade in.",
+            Points      = TwoPoint(0, 0, 1, 1, 0.333, 0.5236, 0.333, 0.0)
         },
 
         new CurvePreset
         {
             Name        = "Sine (Constant Power Fade Out)",
             Category    = "Wwise",
-            Description = "cos²(x·π/2) power-preserving fade out from 1 to 0.",
-            Points      = TwoPoint(0, 1, 1, 0, 0.38, 0.0, 0.2, 0.38)
+            Description = "cos(x·π/2) power-preserving fade out from 1 to 0.",
+            Points      = TwoPoint(0, 1, 1, 0, 0.333, 0.0, 0.333, -0.5236)
         },
 
         new CurvePreset
