@@ -725,51 +725,35 @@ public partial class MainViewModel : ObservableObject
         var presetRight = SelectedPreset.Points.OrderBy(p => p.X).Last();
 
         var sorted = ActiveCurve.Points.OrderBy(p => p.X).ToList();
-        bool isFullCurve = Math.Abs(leftBound.X - sorted.First().X) < 1e-6
-                        && Math.Abs(rightBound.X - sorted.Last().X) < 1e-6
-                        && selected.Count == sorted.Count;
 
-        if (isFullCurve)
+        var newPoints = new List<CurvePoint>();
+        foreach (var p in sorted)
         {
-            var twoPoint = new List<CurvePoint>
+            if (p.X < leftBound.X - 1e-6 || p.X > rightBound.X + 1e-6)
             {
-                new CurvePoint(presetLeft.X, presetLeft.Y)
-                {
-                    RightHandleX = presetLeft.RightHandleX,
-                    RightHandleY = presetLeft.RightHandleY
-                },
-                new CurvePoint(presetRight.X, presetRight.Y)
-                {
-                    LeftHandleX  = presetRight.LeftHandleX,
-                    LeftHandleY  = presetRight.LeftHandleY
-                }
-            };
-            UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, twoPoint, SelectedPreset.Name));
-        }
-        else
-        {
-            var newPoints = new List<CurvePoint>();
-            foreach (var p in sorted)
-            {
-                if (p.X < leftBound.X - 1e-6 || p.X > rightBound.X + 1e-6)
-                {
-                    newPoints.Add(p.Clone());
-                }
+                newPoints.Add(p.Clone());
             }
-
-            var newLeft = leftBound.Clone();
-            var newRight = rightBound.Clone();
-
-            newLeft.RightHandleX = presetLeft.RightHandleX * xRange;
-            newLeft.RightHandleY = presetLeft.RightHandleY * yRange;
-            newRight.LeftHandleX = presetRight.LeftHandleX * xRange;
-            newRight.LeftHandleY = presetRight.LeftHandleY * yRange;
-
-            newPoints.Add(newLeft);
-            newPoints.Add(newRight);
-
-            UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, newPoints.OrderBy(p => p.X).ToList(), SelectedPreset.Name));
         }
+
+        var newLeft = leftBound.Clone();
+        var newRight = rightBound.Clone();
+
+        // Handle offsets are authored against the preset's own Y span (usually +1,
+        // but -1 for descending presets like Fade Out). Normalize that out before
+        // rescaling to the segment's actual span, or a descending preset applied to
+        // an ascending segment (or vice versa) overshoots past the segment endpoints.
+        double presetYSpan = presetRight.Y - presetLeft.Y;
+        double yScale = Math.Abs(presetYSpan) > 1e-9 ? yRange / presetYSpan : 0.0;
+
+        newLeft.RightHandleX = presetLeft.RightHandleX * xRange;
+        newLeft.RightHandleY = presetLeft.RightHandleY * yScale;
+        newRight.LeftHandleX = presetRight.LeftHandleX * xRange;
+        newRight.LeftHandleY = presetRight.LeftHandleY * yScale;
+
+        newPoints.Add(newLeft);
+        newPoints.Add(newRight);
+
+        UndoRedo.Execute(new ApplyPresetCommand(ActiveCurve, newPoints.OrderBy(p => p.X).ToList(), SelectedPreset.Name));
 
         foreach (var p in ActiveCurve.Points)
         {
