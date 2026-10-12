@@ -409,6 +409,24 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void UnloadPreviewAudio()
+    {
+        if (_audioPreview == null) return;
+
+        string name = PreviewFileName ?? "audio";
+        _previewTimer.Stop();
+        _audioPreview.Dispose();
+        _audioPreview = null;
+        PreviewFileName = null;
+        PreviewDurationSeconds = 0;
+        PreviewPositionSeconds = 0;
+        IsPreviewLoaded = false;
+        IsPreviewPlaying = false;
+        OnPropertyChanged(nameof(PreviewTimeDisplay));
+        Status($"Unloaded preview audio: {name}");
+    }
+
+    [RelayCommand]
     private void TogglePreviewPlayback()
     {
         if (_audioPreview == null) return;
