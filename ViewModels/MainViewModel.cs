@@ -92,6 +92,7 @@ public partial class MainViewModel : ObservableObject
         };
         SyncCurveSubscriptions();
         OnPropertyChanged(nameof(PreviewInputLabel));
+        NotifyRangeFieldsChanged();
     }
 
     // ── Range fields (ask-first) — Inspector binds here, not to Document, so edits go through RequestRangeChange ──
@@ -450,6 +451,22 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(PreviewTimeDisplay));
     }
 
+    private void ResetPreview()
+    {
+        _previewTimer.Stop();
+        _audioPreview?.Dispose();
+        _audioPreview = null;
+        PreviewFileName = null;
+        PreviewDurationSeconds = 0;
+        PreviewPositionSeconds = 0;
+        IsPreviewLoaded = false;
+        IsPreviewPlaying = false;
+        IsPreviewLooping = false;
+        PreviewInputValue = 0.5;
+        SetPreviewMode(PreviewMode.Volume);
+        OnPropertyChanged(nameof(PreviewTimeDisplay));
+    }
+
     public void DisposePreviewAudio()
     {
         _previewTimer.Stop();
@@ -777,6 +794,9 @@ public partial class MainViewModel : ObservableObject
         ActiveCurve.EnsureEndpoints();
         ActiveCurve.AutoSmoothHandles();
 
+        ResetPreview();
+        NativeTestInput = 0.5;
+        SelectedPreset = null;
         SelectedPoint = null;
         _currentFilePath = null;
         UndoRedo.Clear();
