@@ -119,6 +119,7 @@
 					<Slider Minimum="0.0" Maximum="1.0"
 							Value="{Binding NativeTestInput, Mode=TwoWay}"
 							TickFrequency="0.01" IsSnapToTickEnabled="False"
+							IsMoveToPointEnabled="True" SmallChange="0.01" LargeChange="0.1"
 							Margin="0,4,0,8"/>
 
 					<Border Background="#1A1A24" CornerRadius="4" Padding="8" Margin="0,0,0,12">
@@ -207,6 +208,7 @@
 					<Slider Minimum="0.0" Maximum="1.0"
 							Value="{Binding PreviewInputValue, Mode=TwoWay}"
 							TickFrequency="0.01" IsSnapToTickEnabled="False"
+							IsMoveToPointEnabled="True" SmallChange="0.01" LargeChange="0.1"
 							Margin="0,4,0,8"/>
 
 					<ProgressBar Height="6" Minimum="0" Maximum="{Binding PreviewDurationSeconds}"
