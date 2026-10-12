@@ -144,99 +144,101 @@
 				<Separator/>
 
 				<!-- Section: Audio Preview -->
-				<TextBlock Text="AUDIO PREVIEW" FontSize="10" FontWeight="SemiBold"
-						   Foreground="#7F77DD" Margin="0,10,0,8"/>
+				<StackPanel TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
+					<TextBlock Text="AUDIO PREVIEW" FontSize="11" FontWeight="SemiBold"
+							   Foreground="#7F77DD" Margin="0,10,0,8"/>
 
-				<Grid Margin="0,0,0,8">
-					<Grid.ColumnDefinitions>
-						<ColumnDefinition Width="*"/>
-						<ColumnDefinition Width="Auto"/>
-					</Grid.ColumnDefinitions>
-					<TextBlock Grid.Column="0" Text="{Binding PreviewFileName, TargetNullValue='No file loaded'}"
-							   FontSize="10" Foreground="#8A88A0" VerticalAlignment="Center"
-							   TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
-					<Button Grid.Column="1" Content="Load..." Command="{Binding LoadPreviewAudioCommand}"
-							Style="{StaticResource GhostButton}" Padding="8,4" FontSize="10"/>
-				</Grid>
-
-				<WrapPanel Margin="0,0,0,8">
-					<RadioButton Content="Volume" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModeVolume}"
-								 Foreground="#8A88A0" FontSize="10" Margin="0,0,16,4"/>
-					<RadioButton Content="Filter Cutoff" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModeFilter}"
-								 Foreground="#8A88A0" FontSize="10" Margin="0,0,16,4"/>
-					<RadioButton Content="Pitch (rate)" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModePitch}"
-								 Foreground="#8A88A0" FontSize="10" Margin="0,0,0,4"/>
-				</WrapPanel>
-
-				<Border Background="#1A1A24" CornerRadius="4" Padding="8" Margin="0,0,0,4">
-					<Grid>
+					<Grid Margin="0,0,0,8">
 						<Grid.ColumnDefinitions>
 							<ColumnDefinition Width="*"/>
-							<ColumnDefinition Width="*"/>
+							<ColumnDefinition Width="Auto"/>
 						</Grid.ColumnDefinitions>
-
-						<StackPanel Grid.Column="0">
-							<TextBlock Text="{Binding PreviewInputLabel}" FontSize="10" Foreground="#8A88A0"/>
-							<TextBlock Text="{Binding PreviewInputReal, StringFormat={}{0:F1}}"
-									   FontSize="13" FontWeight="Bold" Foreground="#3B82F6"/>
-						</StackPanel>
-
-						<StackPanel Grid.Column="1" Visibility="{Binding IsPreviewModeVolume, Converter={StaticResource BoolToVis}}">
-							<TextBlock Text="Volume" FontSize="10" Foreground="#8A88A0"/>
-							<TextBlock Text="{Binding PreviewOutputReal, StringFormat={}{0:F1} dB}"
-									   FontSize="13" FontWeight="Bold" Foreground="#10B981"/>
-						</StackPanel>
-
-						<StackPanel Grid.Column="1" Visibility="{Binding IsPreviewModeFilter, Converter={StaticResource BoolToVis}}">
-							<TextBlock Text="Cutoff" FontSize="10" Foreground="#8A88A0"/>
-							<TextBlock Text="{Binding PreviewFilterCutoffHz, StringFormat={}{0:F0} Hz}"
-									   FontSize="13" FontWeight="Bold" Foreground="#10B981"/>
-						</StackPanel>
-
-						<StackPanel Grid.Column="1" Visibility="{Binding IsPreviewModePitch, Converter={StaticResource BoolToVis}}">
-							<TextBlock Text="Pitch" FontSize="10" Foreground="#8A88A0"/>
-							<TextBlock Text="{Binding PreviewPitchSemitones, StringFormat={}{0:F1} st}"
-									   FontSize="13" FontWeight="Bold" Foreground="#10B981"/>
-						</StackPanel>
+						<TextBlock Grid.Column="0" Text="{Binding PreviewFileName, TargetNullValue='No file loaded'}"
+								   FontSize="11" Foreground="#B8B6CC" VerticalAlignment="Center"
+								   TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+						<Button Grid.Column="1" Content="Load..." Command="{Binding LoadPreviewAudioCommand}"
+								Style="{StaticResource GhostButton}" Padding="8,4" FontSize="11"/>
 					</Grid>
-				</Border>
 
-				<Slider Minimum="0.0" Maximum="1.0"
-						Value="{Binding PreviewInputValue, Mode=TwoWay}"
-						TickFrequency="0.01" IsSnapToTickEnabled="False"
-						Margin="0,4,0,8"/>
+					<WrapPanel Margin="0,0,0,8">
+						<RadioButton Content="Volume" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModeVolume}"
+									 Foreground="#B8B6CC" FontSize="11" Margin="0,0,16,4"/>
+						<RadioButton Content="Filter Cutoff" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModeFilter}"
+									 Foreground="#B8B6CC" FontSize="11" Margin="0,0,16,4"/>
+						<RadioButton Content="Pitch (rate)" GroupName="PreviewMode" IsChecked="{Binding IsPreviewModePitch}"
+									 Foreground="#B8B6CC" FontSize="11" Margin="0,0,0,4"/>
+					</WrapPanel>
 
-				<ProgressBar Height="6" Minimum="0" Maximum="{Binding PreviewDurationSeconds}"
-							 Value="{Binding PreviewPositionSeconds}" Margin="0,0,0,4">
-					<ProgressBar.Template>
-						<ControlTemplate TargetType="ProgressBar">
-							<Border Background="#1A1A24" CornerRadius="3">
-								<Grid>
-									<Rectangle x:Name="PART_Track" Fill="Transparent"/>
-									<Rectangle x:Name="PART_Indicator" Fill="#7F77DD" HorizontalAlignment="Left" RadiusX="3" RadiusY="3"/>
-								</Grid>
-							</Border>
-						</ControlTemplate>
-					</ProgressBar.Template>
-				</ProgressBar>
+					<Border Background="#1A1A24" CornerRadius="4" Padding="8" Margin="0,0,0,4">
+						<Grid>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*"/>
+								<ColumnDefinition Width="*"/>
+							</Grid.ColumnDefinitions>
 
-				<Grid Margin="0,0,0,8">
-					<Grid.ColumnDefinitions>
-						<ColumnDefinition Width="*"/>
-						<ColumnDefinition Width="Auto"/>
-					</Grid.ColumnDefinitions>
-					<TextBlock Grid.Column="0" Text="{Binding PreviewTimeDisplay}" FontSize="10" Foreground="#8A88A0"/>
-					<CheckBox Grid.Column="1" Content="Loop" IsChecked="{Binding IsPreviewLooping}"
-							   Foreground="#8A88A0" FontSize="10" VerticalAlignment="Center"/>
-				</Grid>
+							<StackPanel Grid.Column="0">
+								<TextBlock Text="{Binding PreviewInputLabel}" FontSize="11" Foreground="#B8B6CC"/>
+								<TextBlock Text="{Binding PreviewInputReal, StringFormat={}{0:F1}}"
+										   FontSize="13" FontWeight="Bold" Foreground="#3B82F6"/>
+							</StackPanel>
 
-				<Button Content="▶ Play" Command="{Binding TogglePreviewPlaybackCommand}"
-						IsEnabled="{Binding IsPreviewLoaded}"
-						Visibility="{Binding IsPreviewPlaying, Converter={StaticResource InverseBoolToVis}}"
-						Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,0,0,12"/>
-				<Button Content="■ Stop" Command="{Binding TogglePreviewPlaybackCommand}"
-						Visibility="{Binding IsPreviewPlaying, Converter={StaticResource BoolToVis}}"
-						Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,0,0,12"/>
+							<StackPanel Grid.Column="1" Visibility="{Binding IsPreviewModeVolume, Converter={StaticResource BoolToVis}}">
+								<TextBlock Text="Volume" FontSize="11" Foreground="#B8B6CC"/>
+								<TextBlock Text="{Binding PreviewOutputReal, StringFormat={}{0:F1} dB}"
+										   FontSize="13" FontWeight="Bold" Foreground="#10B981"/>
+							</StackPanel>
+
+							<StackPanel Grid.Column="1" Visibility="{Binding IsPreviewModeFilter, Converter={StaticResource BoolToVis}}">
+								<TextBlock Text="Cutoff" FontSize="11" Foreground="#B8B6CC"/>
+								<TextBlock Text="{Binding PreviewFilterCutoffHz, StringFormat={}{0:F0} Hz}"
+										   FontSize="13" FontWeight="Bold" Foreground="#10B981"/>
+							</StackPanel>
+
+							<StackPanel Grid.Column="1" Visibility="{Binding IsPreviewModePitch, Converter={StaticResource BoolToVis}}">
+								<TextBlock Text="Pitch" FontSize="11" Foreground="#B8B6CC"/>
+								<TextBlock Text="{Binding PreviewPitchSemitones, StringFormat={}{0:F1} st}"
+										   FontSize="13" FontWeight="Bold" Foreground="#10B981"/>
+							</StackPanel>
+						</Grid>
+					</Border>
+
+					<Slider Minimum="0.0" Maximum="1.0"
+							Value="{Binding PreviewInputValue, Mode=TwoWay}"
+							TickFrequency="0.01" IsSnapToTickEnabled="False"
+							Margin="0,4,0,8"/>
+
+					<ProgressBar Height="6" Minimum="0" Maximum="{Binding PreviewDurationSeconds}"
+								 Value="{Binding PreviewPositionSeconds}" Margin="0,0,0,4">
+						<ProgressBar.Template>
+							<ControlTemplate TargetType="ProgressBar">
+								<Border Background="#1A1A24" CornerRadius="3">
+									<Grid>
+										<Rectangle x:Name="PART_Track" Fill="Transparent"/>
+										<Rectangle x:Name="PART_Indicator" Fill="#7F77DD" HorizontalAlignment="Left" RadiusX="3" RadiusY="3"/>
+									</Grid>
+								</Border>
+							</ControlTemplate>
+						</ProgressBar.Template>
+					</ProgressBar>
+
+					<Grid Margin="0,0,0,8">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="*"/>
+							<ColumnDefinition Width="Auto"/>
+						</Grid.ColumnDefinitions>
+						<TextBlock Grid.Column="0" Text="{Binding PreviewTimeDisplay}" FontSize="11" Foreground="#B8B6CC"/>
+						<CheckBox Grid.Column="1" Content="Loop" IsChecked="{Binding IsPreviewLooping}"
+								   Foreground="#B8B6CC" FontSize="11" VerticalAlignment="Center"/>
+					</Grid>
+
+					<Button Content="▶ Play" Command="{Binding TogglePreviewPlaybackCommand}"
+							IsEnabled="{Binding IsPreviewLoaded}"
+							Visibility="{Binding IsPreviewPlaying, Converter={StaticResource InverseBoolToVis}}"
+							Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,0,0,12"/>
+					<Button Content="■ Stop" Command="{Binding TogglePreviewPlaybackCommand}"
+							Visibility="{Binding IsPreviewPlaying, Converter={StaticResource BoolToVis}}"
+							Style="{StaticResource PrimaryButton}" HorizontalAlignment="Stretch" Margin="0,0,0,12"/>
+				</StackPanel>
 
 				<!-- Section: Comparison curves -->
 				<TextBlock Text="COMPARISON CURVES" FontSize="10" FontWeight="SemiBold"
