@@ -10,6 +10,7 @@ public sealed class AudioPreviewService : IDisposable
     private readonly FilterSampleProvider _filter;
     private readonly WaveOutEvent _output;
     private bool _manualStop;
+    private bool _disposed;
 
     // Position/Duration come from _variSpeed, not _reader — _reader gets fully
     // drained upfront by VariSpeedSampleProvider's constructor (see there), so
@@ -42,6 +43,7 @@ public sealed class AudioPreviewService : IDisposable
 
     public void Play()
     {
+        if (_disposed) return;
         _variSpeed.Reset();
         _manualStop = false;
         _output.Play();
@@ -66,6 +68,9 @@ public sealed class AudioPreviewService : IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        PlaybackEnded = null;
         _output.Dispose();
         _reader.Dispose();
     }
