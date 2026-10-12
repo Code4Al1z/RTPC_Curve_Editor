@@ -24,7 +24,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private BezierCurve _activeCurve;
     [ObservableProperty] private CurvePoint? _selectedPoint;
     [ObservableProperty] private string _statusMessage = "Ready";
-    [ObservableProperty] private string _windowTitle = "RTPC Curve Editor";
+    [ObservableProperty] private string _windowTitle = $"RTPC Curve Editor v{AppInfo.Version}";
     [ObservableProperty] private bool _isDirty;
     [ObservableProperty] private bool _snapToGrid = true;
     [ObservableProperty] private string _presetFilter = "";
@@ -842,6 +842,38 @@ public partial class MainViewModel : ObservableObject
             Status($"Saved to {Path.GetFileName(path)}");
         }
         catch (Exception ex) { Error($"Save failed: {ex.Message}"); }
+    }
+
+    public string BuildDiagnostics()
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        return string.Join("\n", new[]
+        {
+            $"Native evaluator: {(NativeEvaluatorAvailable ? "available" : "not available")}",
+            $"Active curve: \"{ActiveCurve?.Name}\", {ActiveCurve?.Points.Count ?? 0} points{(ActiveCurve is { IsVisible: false } ? " (hidden)" : "")}",
+            $"Curves in document: {Document.Curves.Count}",
+            $"Input range: {Document.InputMin.ToString("0.##", inv)} to {Document.InputMax.ToString("0.##", inv)}",
+            $"Output range: {Document.OutputMin.ToString("0.##", inv)} to {Document.OutputMax.ToString("0.##", inv)}",
+            $"Audio preview: {(IsPreviewLoaded ? _previewMode.ToString() : "no file loaded")}",
+            $"Snap to grid: {SnapToGrid}"
+        });
+    }
+
+    [RelayCommand]
+    private void ReportBug()
+    {
+        bool opened = BugReportService.Send(BuildDiagnostics());
+        if (opened) Status("Bug report opened in your email app. A copy is also on your clipboard.");
+    }
+
+    [RelayCommand]
+    private void ShowAbout()
+    {
+        MessageBox.Show(
+            $"RTPC Curve Editor v{AppInfo.Version}\n\nBy AL!Z / TrailblaiZ\ntrailblaiz.studio",
+            "About RTPC Curve Editor",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     // ── Export ────────────────────────────────────────────────────────────

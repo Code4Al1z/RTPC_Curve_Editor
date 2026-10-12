@@ -51,6 +51,12 @@
 						  IsChecked="{Binding SnapToGrid}"/>
 			</MenuItem>
 
+			<MenuItem Header="Help" Foreground="#E8E6F0">
+				<MenuItem Header="Report a bug…" Command="{Binding ReportBugCommand}"/>
+				<Separator/>
+				<MenuItem Header="About" Command="{Binding ShowAboutCommand}"/>
+			</MenuItem>
+
 		</Menu>
 
 		<!-- ── Status bar ───────────────────────────────────────────────── -->

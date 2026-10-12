@@ -117,7 +117,7 @@ msbuild RTPCCurveEditor.sln /t:Build /p:Configuration=Release /p:Platform=x64
 The exported XML models Wwise's real curve concepts accurately — the curve shape names (`Linear`, `SCurve`, `Exp1`/`Exp3`, `Log1`/`Log3`, `Constant`) match Wwise's actual RTPC interpolation types, and the Input/Output structure reflects how Wwise thinks about a Game Parameter driving a curve. **It does not open in Wwise itself.** Wwise's Authoring tool has no general "import an RTPC curve from a file" feature — curve data there is set up manually in its own curve editor UI or via WAAPI. This format is for round-tripping curves within this app (lossless — control points and handles are preserved exactly) and as an accurate reference format, not for direct Wwise file interop.
 
 ### JSON
-Exports a flat array of `{ x, y, xMapped, yMapped }` samples (64 by default) plus metadata. Intended for consumption by SoundBridge (a separate Trailblaiz tool) and other custom tooling.
+Exports a flat array of `{ x, y, xMapped, yMapped }` samples (64 by default) plus metadata. Intended for consumption by SoundBridge (a separate TrailblaiZ tool) and other custom tooling.
 
 ### PNG
 1200×800 high-resolution render of the curve with grid, axis labels, and anchor points. Suitable for technical documentation and pitch decks.

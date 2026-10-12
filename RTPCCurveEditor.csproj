@@ -7,6 +7,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UseWPF>true</UseWPF>
 		<AssemblyName>RTPCCurveEditor</AssemblyName>
+		<Version>0.1.0-beta</Version>
 		<RootNamespace>RTPCCurveEditor</RootNamespace>
 		<LangVersion>14</LangVersion>
 		<ApplicationIcon>Assets\app_icon.ico</ApplicationIcon>
@@ -25,10 +26,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <!-- SetPlatform is the metadata MSBuild reads — a bare <Platform> element is ignored. -->
-	  <ProjectReference Include="RTPCCurveEvaluatorNative\RTPCCurveEvaluatorNative.vcxproj">
-	    <SetPlatform>Platform=x64</SetPlatform>
-	  </ProjectReference>
+		<!-- SetPlatform is the metadata MSBuild reads — a bare <Platform> element is ignored. -->
+		<ProjectReference Include="RTPCCurveEvaluatorNative\RTPCCurveEvaluatorNative.vcxproj">
+			<SetPlatform>Platform=x64</SetPlatform>
+		</ProjectReference>
 	</ItemGroup>
 
 	<!-- No explicit OutDir here, so default output location varies by how it's invoked — force one fixed path. -->
