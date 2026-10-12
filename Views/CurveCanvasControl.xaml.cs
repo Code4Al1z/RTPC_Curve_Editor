@@ -151,9 +151,34 @@ public partial class CurveCanvasControl : UserControl
         {
             DrawCurve(canvas, VM.ActiveCurve, alpha: 255, isActive: true);
             DrawPoints(canvas, VM.ActiveCurve);
+            if (VM.IsPreviewLoaded) DrawPreviewMarker(canvas, VM.ActiveCurve);
         }
 
         canvas.Restore();
+    }
+
+    private void DrawPreviewMarker(SKCanvas canvas, BezierCurve curve)
+    {
+        double nx = Math.Clamp(VM!.PreviewInputValue, 0.0, 1.0);
+        double ny = curve.Sample(nx);
+        var point = ToCanvas(nx, ny);
+
+        var inputColor = new SKColor(59, 130, 246);
+        var outputColor = new SKColor(16, 185, 129);
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 5f }, 0f);
+        using var vLine = new SKPaint { Color = inputColor.WithAlpha(150), StrokeWidth = 1.5f, IsAntialias = true, IsStroke = true, PathEffect = dash };
+        using var hLine = new SKPaint { Color = outputColor.WithAlpha(150), StrokeWidth = 1.5f, IsAntialias = true, IsStroke = true, PathEffect = dash };
+
+        canvas.DrawLine(ToCanvas(nx, 0), ToCanvas(nx, 1), vLine);
+        canvas.DrawLine(ToCanvas(0, ny), point, hLine);
+
+        using var halo = new SKPaint { Color = outputColor.WithAlpha(60), IsAntialias = true };
+        using var fill = new SKPaint { Color = outputColor, IsAntialias = true };
+        using var ring = new SKPaint { Color = SKColors.White, StrokeWidth = 2f, IsAntialias = true, IsStroke = true };
+        canvas.DrawCircle(point, 11f, halo);
+        canvas.DrawCircle(point, 6f, fill);
+        canvas.DrawCircle(point, 6f, ring);
     }
 
     private void DrawGridAndAxes(SKCanvas canvas)
