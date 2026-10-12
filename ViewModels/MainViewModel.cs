@@ -560,7 +560,7 @@ public partial class MainViewModel : ObservableObject
             if (Math.Abs(range) < 1e-6) return;
             double normalizedX = Math.Clamp((value - Document.InputMin) / range, 0.0, 1.0);
 
-            MovePoint(SelectedPoint, normalizedX, SelectedPoint.Y);
+            MovePoint(SelectedPoint, normalizedX, SelectedPoint.Y, false);
             OnPropertyChanged(nameof(SelectedPointRealX));
         }
     }
@@ -579,7 +579,7 @@ public partial class MainViewModel : ObservableObject
             if (Math.Abs(range) < 1e-6) return;
             double normalizedY = Math.Clamp((value - Document.OutputMin) / range, 0.0, 1.0);
 
-            MovePoint(SelectedPoint, SelectedPoint.X, normalizedY);
+            MovePoint(SelectedPoint, SelectedPoint.X, normalizedY, false);
             OnPropertyChanged(nameof(SelectedPointRealY));
         }
     }
@@ -645,7 +645,7 @@ public partial class MainViewModel : ObservableObject
         Status("Point deleted.");
     }
 
-    public void MovePoint(CurvePoint pt, double newX, double newY)
+    public void MovePoint(CurvePoint pt, double newX, double newY, bool applySnap = true)
     {
         if (pt == null) return;
 
@@ -656,7 +656,7 @@ public partial class MainViewModel : ObservableObject
         double oldRHX = pt.RightHandleX;
         double oldRHY = pt.RightHandleY;
 
-        if (SnapToGrid) { newX = Snap(newX); newY = Snap(newY); }
+        if (applySnap && SnapToGrid) { newX = Snap(newX); newY = Snap(newY); }
         newX = Math.Clamp(newX, 0, 1);
         newY = Math.Clamp(newY, 0, 1);
 
@@ -726,12 +726,6 @@ public partial class MainViewModel : ObservableObject
 
         var sorted = ActiveCurve.Points.OrderBy(p => p.X).ToList();
 
-        // A preset defines a SHAPE, not an absolute output level: applying it (whether
-        // to the whole curve or just a selected section) reshapes the curve between the
-        // endpoints you already have, it never relocates those endpoints. Otherwise a
-        // descending preset like Fade Out or Distance Attenuation applied to the whole
-        // curve would silently flip which end is loud and which is quiet, discarding
-        // whatever start/end values you'd set up.
         var newPoints = new List<CurvePoint>();
         foreach (var p in sorted)
         {
