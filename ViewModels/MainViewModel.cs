@@ -726,6 +726,12 @@ public partial class MainViewModel : ObservableObject
 
         var sorted = ActiveCurve.Points.OrderBy(p => p.X).ToList();
 
+        // A preset defines a SHAPE, not an absolute output level: applying it (whether
+        // to the whole curve or just a selected section) reshapes the curve between the
+        // endpoints you already have, it never relocates those endpoints. Otherwise a
+        // descending preset like Fade Out or Distance Attenuation applied to the whole
+        // curve would silently flip which end is loud and which is quiet, discarding
+        // whatever start/end values you'd set up.
         var newPoints = new List<CurvePoint>();
         foreach (var p in sorted)
         {
