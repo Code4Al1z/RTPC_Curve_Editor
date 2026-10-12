@@ -32,9 +32,9 @@
 				<MenuItem Header="Save"            Command="{Binding SaveCommand}"        InputGestureText="Ctrl+S"/>
 				<MenuItem Header="Save As…"        Command="{Binding SaveAsCommand}"/>
 				<Separator/>
-				<MenuItem Header="Import Wwise XML…"  Command="{Binding ImportWwiseXmlCommand}"/>
+				<MenuItem Header="Import XML (Wwise-style)…"  Command="{Binding ImportWwiseXmlCommand}"/>
 				<Separator/>
-				<MenuItem Header="Export Wwise XML…"  Command="{Binding ExportWwiseXmlCommand}"/>
+				<MenuItem Header="Export XML (Wwise-style)…"  Command="{Binding ExportWwiseXmlCommand}"/>
 				<MenuItem Header="Export JSON…"       Command="{Binding ExportJsonCommand}"/>
 				<MenuItem Header="Export PNG…"        Command="{Binding ExportPngCommand}"/>
 			</MenuItem>

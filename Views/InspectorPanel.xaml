@@ -311,7 +311,7 @@
 				<TextBlock Text="EXPORT" FontSize="10" FontWeight="SemiBold"
 						   Foreground="#4A4860" Margin="0,0,0,8"/>
 
-				<Button Content="Export Wwise XML"
+				<Button Content="Export XML (Wwise-style)"
 						Command="{Binding ExportWwiseXmlCommand}"
 						Style="{StaticResource GhostButton}"
 						Margin="0,0,0,4"/>

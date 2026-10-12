@@ -851,16 +851,16 @@ public partial class MainViewModel : ObservableObject
     {
         var dlg = new SaveFileDialog
         {
-            Filter = "Wwise XML (*.xml)|*.xml",
+            Filter = "XML, Wwise-style (*.xml)|*.xml",
             FileName = $"{ActiveCurve.Name}_rtpc",
             DefaultExt = ".xml",
-            Title = "Export Wwise XML"
+            Title = "Export XML (Wwise-style)"
         };
         if (dlg.ShowDialog() != true) return;
         try
         {
             File.WriteAllText(dlg.FileName, WwiseXmlService.Export(Document, ActiveCurve));
-            Status($"Exported Wwise XML → {Path.GetFileName(dlg.FileName)}");
+            Status($"Exported XML → {Path.GetFileName(dlg.FileName)}");
         }
         catch (Exception ex) { Error($"Export failed: {ex.Message}"); }
     }
@@ -911,7 +911,7 @@ public partial class MainViewModel : ObservableObject
         var dlg = new OpenFileDialog
         {
             Filter = "XML files (*.xml)|*.xml|All files (*.*)|*.*",
-            Title = "Import Wwise XML as comparison curve"
+            Title = "Import XML (Wwise-style) as comparison curve"
         };
         if (dlg.ShowDialog() != true) return;
 
