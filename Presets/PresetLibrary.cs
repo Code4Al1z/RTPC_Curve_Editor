@@ -3,9 +3,10 @@ using RTPCCurveEditor.Models;
 namespace RTPCCurveEditor.Presets;
 
 /// <summary>
-/// Curve presets matching Wwise's built-in curve shapes exactly.
-/// Each preset is defined with precise Bézier handle values derived from
-/// standard audio DSP curve equations.
+/// Curve presets. The Wwise-category entries are hand-tuned Bézier
+/// approximations of Wwise's named curve shapes, not exact reproductions of
+/// them. The psychoacoustic entries approximate their named formulas in the
+/// same way (the sine fades are the closest fit).
 /// </summary>
 public static class PresetLibrary
 {

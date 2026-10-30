@@ -13,7 +13,7 @@ public static class JsonExportService
 
     /// <summary>
     /// Export the primary curve as a flat array of {x, y} samples.
-    /// Suitable for SoundBridge and custom tooling.
+    /// Suitable for custom tooling.
     /// </summary>
     public static string ExportSamples(CurveDocument doc, int sampleCount = 64)
     {

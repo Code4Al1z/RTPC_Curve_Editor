@@ -908,7 +908,7 @@ public partial class MainViewModel : ObservableObject
     private void ShowAbout()
     {
         MessageBox.Show(
-            $"RTPC Curve Editor v{AppInfo.Version}\n\nBy AL!Z / TrailblaiZ\ntrailblaiz.studio",
+            $"RTPC Curve Editor v{AppInfo.Version}\n\nBy AL!Z\nalizpasztor.com",
             "About RTPC Curve Editor",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
