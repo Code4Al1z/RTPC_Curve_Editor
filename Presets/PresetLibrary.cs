@@ -26,7 +26,7 @@ public static class PresetLibrary
         {
             Name        = "Constant",
             Category    = "Wwise",
-            Description = "Holds near start value before stepping up at the end.",
+            Description = "Stays near the start value, then rises sharply near the end. An approximation, not a true hold.",
             Points      = TwoPoint(0, 0, 1, 1, 0.8, 0.0, 0.0, 0.8)
         },
 
@@ -74,7 +74,7 @@ public static class PresetLibrary
         {
             Name        = "Exponential (Base 3)",
             Category    = "Wwise",
-            Description = "Steep exponential rise — classic volume distance attenuation.",
+            Description = "Steep exponential-style rise, a common starting point for distance attenuation.",
             Points      = TwoPoint(0, 0, 1, 1, 0.45, 0.0, 0.15, 0.4)
         },
 
@@ -100,7 +100,7 @@ public static class PresetLibrary
         {
             Name        = "Stevens' Power (loudness)",
             Category    = "Psychoacoustic",
-            Description = "Perceived loudness growth model: L = I^0.3.",
+            Description = "Approximates Stevens' power law for perceived loudness (L = I^0.3).",
             Points      = TwoPoint(0, 0, 1, 1, 0.1, 0.45, 0.4, 0.05)
         },
 
@@ -108,7 +108,7 @@ public static class PresetLibrary
         {
             Name        = "Perceptual Volume (dB taper)",
             Category    = "Psychoacoustic",
-            Description = "Logarithmic taper for perceptually linear dB attenuation.",
+            Description = "Approximate logarithmic taper for perceptually even dB changes.",
             Points      = TwoPoint(0, 0, 1, 1, 0.5, 0.0, 0.1, 0.45)
         },
 
@@ -116,7 +116,7 @@ public static class PresetLibrary
         {
             Name        = "Distance Attenuation (inverse square)",
             Category    = "Psychoacoustic",
-            Description = "Physically accurate 1/(1+k·x)² free-field sound dropoff.",
+            Description = "Approximates inverse-square free-field dropoff.",
             Points      = TwoPoint(0, 1, 1, 0, 0.15, -0.4, 0.45, 0.0)
         },
 
